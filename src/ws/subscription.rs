@@ -100,7 +100,7 @@ impl LogFilter {
                 .unwrap_or_default();
 
             for (i, topic_filter) in topics.iter().enumerate() {
-                if let Some(ref filter_values) = topic_filter {
+                if let Some(filter_values) = topic_filter {
                     match log_topics.get(i) {
                         Some(log_topic) => {
                             if !filter_values

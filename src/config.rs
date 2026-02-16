@@ -327,40 +327,40 @@ mod tests {
 
     #[test]
     fn test_interpolate_env_vars_simple() {
-        std::env::set_var("MEDDLER_TEST_KEY", "hello");
+        unsafe { std::env::set_var("MEDDLER_TEST_KEY", "hello") };
         let result = interpolate_env_vars("prefix-${MEDDLER_TEST_KEY}-suffix");
         assert_eq!(result, "prefix-hello-suffix");
-        std::env::remove_var("MEDDLER_TEST_KEY");
+        unsafe { std::env::remove_var("MEDDLER_TEST_KEY") };
     }
 
     #[test]
     fn test_interpolate_env_vars_missing() {
-        std::env::remove_var("MEDDLER_MISSING_VAR");
+        unsafe { std::env::remove_var("MEDDLER_MISSING_VAR") };
         let result = interpolate_env_vars("url/${MEDDLER_MISSING_VAR}/path");
         assert_eq!(result, "url//path");
     }
 
     #[test]
     fn test_interpolate_env_vars_default() {
-        std::env::remove_var("MEDDLER_UNSET_VAR");
+        unsafe { std::env::remove_var("MEDDLER_UNSET_VAR") };
         let result = interpolate_env_vars("${MEDDLER_UNSET_VAR:-fallback_value}");
         assert_eq!(result, "fallback_value");
     }
 
     #[test]
     fn test_interpolate_env_vars_default_overridden() {
-        std::env::set_var("MEDDLER_SET_VAR", "actual");
+        unsafe { std::env::set_var("MEDDLER_SET_VAR", "actual") };
         let result = interpolate_env_vars("${MEDDLER_SET_VAR:-fallback}");
         assert_eq!(result, "actual");
-        std::env::remove_var("MEDDLER_SET_VAR");
+        unsafe { std::env::remove_var("MEDDLER_SET_VAR") };
     }
 
     #[test]
     fn test_interpolate_env_vars_empty_uses_default() {
-        std::env::set_var("MEDDLER_EMPTY_VAR", "");
+        unsafe { std::env::set_var("MEDDLER_EMPTY_VAR", "") };
         let result = interpolate_env_vars("${MEDDLER_EMPTY_VAR:-default}");
         assert_eq!(result, "default");
-        std::env::remove_var("MEDDLER_EMPTY_VAR");
+        unsafe { std::env::remove_var("MEDDLER_EMPTY_VAR") };
     }
 
     #[test]
