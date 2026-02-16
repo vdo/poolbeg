@@ -1,11 +1,9 @@
 
 <div align="center">
 
-<picture>
-  <img alt="poolbeg" src="logo.svg" width="480">
-</picture>
+<img alt="poolbeg" src="poolbeg.png" width="300">
 
-<br/><br/>
+<h1>poolbeg</h1>
 
 [![CI](https://github.com/vdo/poolbeg/actions/workflows/ci.yml/badge.svg)](https://github.com/vdo/poolbeg/actions/workflows/ci.yml)
 [![Release](https://github.com/vdo/poolbeg/actions/workflows/release.yml/badge.svg)](https://github.com/vdo/poolbeg/actions/workflows/release.yml)

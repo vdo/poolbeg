@@ -1,0 +1,690 @@
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │  Poolbeg — Full Example Configuration                                     │
+# │  A rich multi-chain setup covering popular EVM L1s, L2s, and testnets.    │
+# │                                                                           │
+# │  Environment variables:                                                   │
+# │    REDIS_URL      — Redis connection string                               │
+# │    INFURA_KEY     — Infura project ID                                     │
+# │    ALCHEMY_KEY    — Alchemy API key                                       │
+# │    ANKR_KEY       — Ankr premium API key                                  │
+# │    DRPC_KEY       — dRPC API key                                          │
+# └─────────────────────────────────────────────────────────────────────────────┘
+
+server:
+  address: "0.0.0.0"
+  port: 8080
+  metrics:
+    address: "0.0.0.0"
+    port: 9090
+    path: "/metrics"
+
+  # API key authentication (optional)
+  auth:
+    enabled: false
+    api_keys: []
+    # api_keys:
+    #   - "your-secret-api-key-1"
+    #   - "your-secret-api-key-2"
+
+  # Global rate limit (requests per second across all chains)
+  max_rps: 5000
+
+  # Maximum request body size in bytes (default: 1MB)
+  max_body_size: 1048576
+
+  # Maximum number of requests in a single JSON-RPC batch
+  max_batch_size: 100
+
+  # Maximum concurrent WebSocket connections
+  max_ws_connections: 4096
+
+  # Block dangerous RPC method prefixes
+  blocked_methods:
+    - "admin_"
+    - "debug_"
+    - "personal_"
+    - "miner_"
+    - "txpool_"
+
+cache:
+  redis:
+    url: "${REDIS_URL:-redis://localhost:6379}"
+    pool_size: 32
+    db: 0
+  policies:
+    # ── Immutable historical data — cache forever ────────────────────────────
+    - methods:
+        - "eth_getBlockByHash"
+        - "eth_getTransactionByHash"
+        - "eth_getTransactionReceipt"
+        - "eth_getBlockTransactionCountByHash"
+        - "eth_getUncleByBlockHashAndIndex"
+        - "eth_getUncleCountByBlockHash"
+      finality: finalized
+      ttl: "0"
+
+    # ── Static / slow-changing data — long TTL ───────────────────────────────
+    - methods:
+        - "eth_chainId"
+        - "net_version"
+        - "web3_clientVersion"
+        - "eth_protocolVersion"
+        - "net_listening"
+      finality: any
+      ttl: "3600s"
+
+    # ── Unfinalized block-dependent data — short TTL ─────────────────────────
+    - methods:
+        - "eth_getBlockByNumber"
+        - "eth_getBalance"
+        - "eth_getCode"
+        - "eth_getStorageAt"
+        - "eth_getTransactionCount"
+        - "eth_getBlockTransactionCountByNumber"
+      finality: unfinalized
+      ttl: "2s"
+
+    # ── Log queries — moderate TTL when finalized ────────────────────────────
+    - methods: ["eth_getLogs"]
+      finality: finalized
+      ttl: "0"
+    - methods: ["eth_getLogs"]
+      finality: unfinalized
+      ttl: "2s"
+
+    # ── Never cache: state-changing / estimation / subscriptions ─────────────
+    - methods:
+        - "eth_sendRawTransaction"
+        - "eth_estimateGas"
+        - "eth_call"
+        - "eth_createAccessList"
+        - "eth_gasPrice"
+        - "eth_maxPriorityFeePerGas"
+        - "eth_feeHistory"
+        - "eth_blockNumber"
+        - "eth_syncing"
+        - "eth_subscribe"
+        - "eth_unsubscribe"
+        - "eth_newFilter"
+        - "eth_newBlockFilter"
+        - "eth_newPendingTransactionFilter"
+        - "eth_getFilterChanges"
+        - "eth_getFilterLogs"
+        - "eth_uninstallFilter"
+      finality: any
+      ttl: "-1"
+
+    # ── Default catch-all ────────────────────────────────────────────────────
+    - methods: ["*"]
+      finality: finalized
+      ttl: "3600s"
+    - methods: ["*"]
+      finality: unfinalized
+      ttl: "3s"
+
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║  CHAINS                                                                     ║
+# ║                                                                             ║
+# ║  Upstream roles:                                                            ║
+# ║    primary   — tried first (round-robin within tier)                        ║
+# ║    secondary — used when all primaries are unhealthy                        ║
+# ║    fallback  — last resort                                                  ║
+# ║                                                                             ║
+# ║  Strategies: round_robin (default) | random | lowest_latency               ║
+# ║                                                                             ║
+# ║  auto_public: true  fetches public endpoints from eRPC registry and adds   ║
+# ║  them as fallback upstreams automatically.                                  ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+chains:
+
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │  L1 MAINNETS                                                             │
+  # └───────────────────────────────────────────────────────────────────────────┘
+
+  # ── Ethereum ───────────────────────────────────────────────────────────────
+  - name: ethereum
+    chain_id: 1
+    expected_block_time: "12s"
+    finality_depth: 64
+    route: /ethereum
+    strategy: lowest_latency
+    auto_public: true
+    upstreams:
+      - id: infura-eth
+        role: primary
+        http_url: "https://mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-eth
+        role: primary
+        http_url: "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: ankr-eth
+        role: secondary
+        http_url: "https://rpc.ankr.com/eth/${ANKR_KEY}"
+        max_rps: 30
+      - id: drpc-eth
+        role: secondary
+        http_url: "https://lb.drpc.org/ogrpc?network=ethereum&dkey=${DRPC_KEY}"
+        max_rps: 30
+      - id: publicnode-eth
+        role: fallback
+        http_url: "https://ethereum-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── BNB Smart Chain (BSC) ──────────────────────────────────────────────────
+  - name: bsc
+    chain_id: 56
+    expected_block_time: "3s"
+    finality_depth: 15
+    route: /bsc
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: ankr-bsc
+        role: primary
+        http_url: "https://rpc.ankr.com/bsc/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-bsc
+        role: fallback
+        http_url: "https://bsc-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Avalanche C-Chain ──────────────────────────────────────────────────────
+  - name: avalanche
+    chain_id: 43114
+    expected_block_time: "2s"
+    finality_depth: 1
+    route: /avalanche
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-avax
+        role: primary
+        http_url: "https://avalanche-mainnet.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: ankr-avax
+        role: secondary
+        http_url: "https://rpc.ankr.com/avalanche/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-avax
+        role: fallback
+        http_url: "https://avalanche-c-chain-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Fantom ─────────────────────────────────────────────────────────────────
+  - name: fantom
+    chain_id: 250
+    expected_block_time: "1s"
+    finality_depth: 1
+    route: /fantom
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: ankr-ftm
+        role: primary
+        http_url: "https://rpc.ankr.com/fantom/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-ftm
+        role: fallback
+        http_url: "https://fantom-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Cronos ─────────────────────────────────────────────────────────────────
+  - name: cronos
+    chain_id: 25
+    expected_block_time: "6s"
+    finality_depth: 20
+    route: /cronos
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: public-cronos
+        role: fallback
+        http_url: "https://evm.cronos.org"
+        max_rps: 10
+
+  # ── Celo ───────────────────────────────────────────────────────────────────
+  - name: celo
+    chain_id: 42220
+    expected_block_time: "5s"
+    finality_depth: 1
+    route: /celo
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-celo
+        role: primary
+        http_url: "https://celo-mainnet.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: public-celo
+        role: fallback
+        http_url: "https://forno.celo.org"
+        max_rps: 10
+
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │  L2 ROLLUPS                                                              │
+  # └───────────────────────────────────────────────────────────────────────────┘
+
+  # ── Arbitrum One ───────────────────────────────────────────────────────────
+  - name: arbitrum
+    chain_id: 42161
+    expected_block_time: "250ms"
+    finality_depth: 100
+    route: /arbitrum
+    strategy: lowest_latency
+    auto_public: true
+    disabled_retry_interval: "12h"
+    upstreams:
+      - id: infura-arb
+        role: primary
+        http_url: "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://arbitrum-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-arb
+        role: primary
+        http_url: "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: ankr-arb
+        role: secondary
+        http_url: "https://rpc.ankr.com/arbitrum/${ANKR_KEY}"
+        max_rps: 30
+
+  # ── Optimism ───────────────────────────────────────────────────────────────
+  - name: optimism
+    chain_id: 10
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /optimism
+    strategy: lowest_latency
+    auto_public: true
+    upstreams:
+      - id: infura-op
+        role: primary
+        http_url: "https://optimism-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://optimism-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-op
+        role: primary
+        http_url: "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: ankr-op
+        role: secondary
+        http_url: "https://rpc.ankr.com/optimism/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-op
+        role: fallback
+        http_url: "https://optimism-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Base ───────────────────────────────────────────────────────────────────
+  - name: base
+    chain_id: 8453
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /base
+    strategy: lowest_latency
+    auto_public: true
+    upstreams:
+      - id: infura-base
+        role: primary
+        http_url: "https://base-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://base-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-base
+        role: primary
+        http_url: "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: ankr-base
+        role: secondary
+        http_url: "https://rpc.ankr.com/base/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-base
+        role: fallback
+        http_url: "https://base-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Polygon PoS ────────────────────────────────────────────────────────────
+  - name: polygon
+    chain_id: 137
+    expected_block_time: "2s"
+    finality_depth: 128
+    route: /polygon
+    strategy: lowest_latency
+    auto_public: true
+    upstreams:
+      - id: infura-polygon
+        role: primary
+        http_url: "https://polygon-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://polygon-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-polygon
+        role: primary
+        http_url: "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: ankr-polygon
+        role: secondary
+        http_url: "https://rpc.ankr.com/polygon/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-polygon
+        role: fallback
+        http_url: "https://polygon-bor-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Polygon zkEVM ──────────────────────────────────────────────────────────
+  - name: polygon-zkevm
+    chain_id: 1101
+    expected_block_time: "5s"
+    finality_depth: 64
+    route: /polygon-zkevm
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: alchemy-zkevm
+        role: primary
+        http_url: "https://polygonzkevm-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: public-zkevm
+        role: fallback
+        http_url: "https://zkevm-rpc.com"
+        max_rps: 10
+
+  # ── zkSync Era ─────────────────────────────────────────────────────────────
+  - name: zksync
+    chain_id: 324
+    expected_block_time: "1s"
+    finality_depth: 32
+    route: /zksync
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-zksync
+        role: primary
+        http_url: "https://zksync-mainnet.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: ankr-zksync
+        role: secondary
+        http_url: "https://rpc.ankr.com/zksync_era/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-zksync
+        role: fallback
+        http_url: "https://mainnet.era.zksync.io"
+        max_rps: 10
+
+  # ── Scroll ─────────────────────────────────────────────────────────────────
+  - name: scroll
+    chain_id: 534352
+    expected_block_time: "3s"
+    finality_depth: 64
+    route: /scroll
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: ankr-scroll
+        role: primary
+        http_url: "https://rpc.ankr.com/scroll/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-scroll
+        role: fallback
+        http_url: "https://rpc.scroll.io"
+        max_rps: 10
+
+  # ── Linea ──────────────────────────────────────────────────────────────────
+  - name: linea
+    chain_id: 59144
+    expected_block_time: "12s"
+    finality_depth: 64
+    route: /linea
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-linea
+        role: primary
+        http_url: "https://linea-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://linea-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: public-linea
+        role: fallback
+        http_url: "https://rpc.linea.build"
+        max_rps: 10
+
+  # ── Mantle ─────────────────────────────────────────────────────────────────
+  - name: mantle
+    chain_id: 5000
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /mantle
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: ankr-mantle
+        role: primary
+        http_url: "https://rpc.ankr.com/mantle/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-mantle
+        role: fallback
+        http_url: "https://rpc.mantle.xyz"
+        max_rps: 10
+
+  # ── Blast ──────────────────────────────────────────────────────────────────
+  - name: blast
+    chain_id: 81457
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /blast
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-blast
+        role: primary
+        http_url: "https://blast-mainnet.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: ankr-blast
+        role: secondary
+        http_url: "https://rpc.ankr.com/blast/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-blast
+        role: fallback
+        http_url: "https://rpc.blast.io"
+        max_rps: 10
+
+  # ── Manta Pacific ──────────────────────────────────────────────────────────
+  - name: manta
+    chain_id: 169
+    expected_block_time: "10s"
+    finality_depth: 64
+    route: /manta
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: public-manta
+        role: fallback
+        http_url: "https://pacific-rpc.manta.network/http"
+        max_rps: 10
+
+  # ── Mode ───────────────────────────────────────────────────────────────────
+  - name: mode
+    chain_id: 34443
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /mode
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: public-mode
+        role: fallback
+        http_url: "https://mainnet.mode.network"
+        max_rps: 10
+
+  # ── Gnosis (xDai) ─────────────────────────────────────────────────────────
+  - name: gnosis
+    chain_id: 100
+    expected_block_time: "5s"
+    finality_depth: 64
+    route: /gnosis
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: ankr-gnosis
+        role: primary
+        http_url: "https://rpc.ankr.com/gnosis/${ANKR_KEY}"
+        max_rps: 30
+      - id: publicnode-gnosis
+        role: fallback
+        http_url: "https://gnosis-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Metis ──────────────────────────────────────────────────────────────────
+  - name: metis
+    chain_id: 1088
+    expected_block_time: "4s"
+    finality_depth: 64
+    route: /metis
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: public-metis
+        role: fallback
+        http_url: "https://andromeda.metis.io/?owner=1088"
+        max_rps: 10
+
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │  TESTNETS                                                                │
+  # └───────────────────────────────────────────────────────────────────────────┘
+
+  # ── Ethereum Sepolia ───────────────────────────────────────────────────────
+  - name: ethereum-sepolia
+    chain_id: 11155111
+    expected_block_time: "12s"
+    finality_depth: 64
+    route: /ethereum-sepolia
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-sepolia
+        role: primary
+        http_url: "https://sepolia.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://sepolia.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-sepolia
+        role: primary
+        http_url: "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        ws_url: "wss://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: publicnode-sepolia
+        role: fallback
+        http_url: "https://ethereum-sepolia-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Ethereum Holesky ───────────────────────────────────────────────────────
+  - name: ethereum-holesky
+    chain_id: 17000
+    expected_block_time: "12s"
+    finality_depth: 64
+    route: /ethereum-holesky
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-holesky
+        role: primary
+        http_url: "https://holesky.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: publicnode-holesky
+        role: fallback
+        http_url: "https://ethereum-holesky-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Arbitrum Sepolia ───────────────────────────────────────────────────────
+  - name: arbitrum-sepolia
+    chain_id: 421614
+    expected_block_time: "250ms"
+    finality_depth: 100
+    route: /arbitrum-sepolia
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-arb-sepolia
+        role: primary
+        http_url: "https://arbitrum-sepolia.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://arbitrum-sepolia.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-arb-sepolia
+        role: primary
+        http_url: "https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: publicnode-arb-sepolia
+        role: fallback
+        http_url: "https://arbitrum-sepolia-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Optimism Sepolia ───────────────────────────────────────────────────────
+  - name: optimism-sepolia
+    chain_id: 11155420
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /optimism-sepolia
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-op-sepolia
+        role: primary
+        http_url: "https://optimism-sepolia.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-op-sepolia
+        role: primary
+        http_url: "https://opt-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: publicnode-op-sepolia
+        role: fallback
+        http_url: "https://optimism-sepolia-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Base Sepolia ───────────────────────────────────────────────────────────
+  - name: base-sepolia
+    chain_id: 84532
+    expected_block_time: "2s"
+    finality_depth: 64
+    route: /base-sepolia
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-base-sepolia
+        role: primary
+        http_url: "https://base-sepolia.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-base-sepolia
+        role: primary
+        http_url: "https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: publicnode-base-sepolia
+        role: fallback
+        http_url: "https://base-sepolia-rpc.publicnode.com"
+        max_rps: 10
+
+  # ── Polygon Amoy ───────────────────────────────────────────────────────────
+  - name: polygon-amoy
+    chain_id: 80002
+    expected_block_time: "2s"
+    finality_depth: 128
+    route: /polygon-amoy
+    strategy: round_robin
+    auto_public: true
+    upstreams:
+      - id: infura-amoy
+        role: primary
+        http_url: "https://polygon-amoy.infura.io/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: alchemy-amoy
+        role: primary
+        http_url: "https://polygon-amoy.g.alchemy.com/v2/${ALCHEMY_KEY}"
+        max_rps: 50
+      - id: publicnode-amoy
+        role: fallback
+        http_url: "https://polygon-amoy-bor-rpc.publicnode.com"
+        max_rps: 10

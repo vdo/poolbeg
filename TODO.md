@@ -1,1 +1,0 @@
-add a auto-public mode using https://evm-public-endpoints.erpc.cloud/ json to fetch public RPCs for upstreams.
