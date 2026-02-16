@@ -108,7 +108,7 @@ config:
       - methods: ["eth_getBlockByHash", "eth_getTransactionByHash", "eth_getTransactionReceipt"]
         finality: finalized
         ttl: "0"
-      - methods: ["eth_getBlockByNumber", "eth_getBalance", "eth_getCode"]
+      - methods: ["eth_getBlockByNumber", "eth_getBalance", "eth_getCode", "eth_getStorageAt"]
         finality: unfinalized
         ttl: "2s"
       - methods: ["eth_sendRawTransaction", "eth_estimateGas", "eth_call"]
@@ -127,15 +127,30 @@ config:
       expected_block_time: "12s"
       finality_depth: 64
       route: /ethereum
+      strategy: round_robin
+      auto_public: false
       upstreams:
         - id: infura-eth
           role: primary
-          http_url: "https://mainnet.infura.io/v3/YOUR_KEY"
+          http_url: "https://mainnet.infura.io/v3/${INFURA_KEY}"
           max_rps: 50
         - id: public-eth
           role: fallback
           http_url: "https://ethereum-rpc.publicnode.com"
           max_rps: 10
+    - name: arbitrum
+      chain_id: 42161
+      expected_block_time: "250ms"
+      finality_depth: 100
+      route: /arbitrum
+      strategy: lowest_latency
+      auto_public: true
+      disabled_retry_interval: "24h"
+      upstreams:
+        - id: infura-arb
+          role: primary
+          http_url: "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
+          max_rps: 50
 
 # Secrets for upstream API keys (referenced by env vars in config)
 # Option 1: let the chart create a Secret with these values

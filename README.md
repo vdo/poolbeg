@@ -167,6 +167,46 @@ Meddler supports multiple chains from a single instance. Just add another entry 
 | `secondary` | Used when all primaries are unhealthy |
 | `fallback` | Last resort |
 
+### Auto-Public Endpoints
+
+Meddler can automatically discover and add public RPC endpoints for any chain using the [eRPC public endpoints registry](https://evm-public-endpoints.erpc.cloud/). Set `auto_public: true` on a chain and meddler will fetch the registry at startup, injecting all matching endpoints as `fallback` upstreams.
+
+```yaml
+chains:
+  - name: arbitrum
+    chain_id: 42161
+    expected_block_time: "250ms"
+    route: /arbitrum
+    auto_public: true
+    strategy: lowest_latency
+    # Optional: how long before retrying a disabled upstream (default: 24h)
+    disabled_retry_interval: "24h"
+```
+
+You can combine `auto_public` with manually configured upstreams — your primary/secondary upstreams are tried first, and the auto-discovered public endpoints serve as fallbacks. Duplicate URLs are automatically deduplicated.
+
+Upstreams that fail health checks are backed off exponentially (10s → 20s → ... → 10min) and disabled after 6 consecutive failures. Disabled upstreams are retried after `disabled_retry_interval`.
+
+You can even define a chain with **no manual upstreams at all** — just `auto_public: true` and an empty (or omitted) `upstreams` list.
+
+### Upstream selection strategy
+
+Each chain can configure how meddler picks among healthy upstreams within a tier:
+
+| Strategy | Config value | Behavior |
+|----------|-------------|----------|
+| Round-robin | `round_robin` (default) | Cycles sequentially |
+| Random | `random` | Picks randomly each request |
+| Lowest latency | `lowest_latency` | Picks the upstream with the lowest observed latency (EMA) |
+
+```yaml
+chains:
+  - name: ethereum
+    chain_id: 1
+    strategy: lowest_latency
+    # ...
+```
+
 ## Architecture
 
 ```

@@ -87,6 +87,9 @@ fn test_config() -> Config {
                 expected_block_time: Duration::from_secs(12),
                 finality_depth: 64,
                 route: "/ethereum".to_string(),
+                auto_public: false,
+                strategy: UpstreamStrategy::RoundRobin,
+                disabled_retry_interval: Duration::from_secs(86400),
                 upstreams: vec![UpstreamConfig {
                     id: "public-eth".to_string(),
                     role: UpstreamRole::Primary,
@@ -101,6 +104,9 @@ fn test_config() -> Config {
                 expected_block_time: Duration::from_millis(250),
                 finality_depth: 100,
                 route: "/arbitrum".to_string(),
+                auto_public: false,
+                strategy: UpstreamStrategy::RoundRobin,
+                disabled_retry_interval: Duration::from_secs(86400),
                 upstreams: vec![UpstreamConfig {
                     id: "public-arb".to_string(),
                     role: UpstreamRole::Primary,
