@@ -216,10 +216,16 @@ impl SubscriptionManager {
                     self.handle_event(event).await;
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
-                    warn!(skipped = n, "[{}] subscription manager lagged behind block events", self.chain_name);
+                    warn!(
+                        skipped = n,
+                        "[{}] subscription manager lagged behind block events", self.chain_name
+                    );
                 }
                 Err(broadcast::error::RecvError::Closed) => {
-                    info!("[{}] block event channel closed, stopping subscription manager", self.chain_name);
+                    info!(
+                        "[{}] block event channel closed, stopping subscription manager",
+                        self.chain_name
+                    );
                     break;
                 }
             }

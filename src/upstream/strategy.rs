@@ -30,10 +30,7 @@ pub fn select(
             Some(candidates[idx].clone())
         }
         UpstreamStrategy::LowestLatency => {
-            candidates
-                .iter()
-                .min_by_key(|u| u.latency_us())
-                .cloned()
+            candidates.iter().min_by_key(|u| u.latency_us()).cloned()
         }
     }
 }
@@ -45,13 +42,17 @@ mod tests {
 
     fn make_upstream(id: &str) -> Arc<UpstreamClient> {
         Arc::new(
-            UpstreamClient::new(&UpstreamConfig {
-                id: id.to_string(),
-                role: UpstreamRole::Primary,
-                http_url: "http://localhost:8545".to_string(),
-                ws_url: None,
-                max_rps: 100,
-            }, std::time::Duration::from_secs(86400), "test".to_string())
+            UpstreamClient::new(
+                &UpstreamConfig {
+                    id: id.to_string(),
+                    role: UpstreamRole::Primary,
+                    http_url: "http://localhost:8545".to_string(),
+                    ws_url: None,
+                    max_rps: 100,
+                },
+                std::time::Duration::from_secs(86400),
+                "test".to_string(),
+            )
             .unwrap(),
         )
     }
@@ -78,7 +79,12 @@ mod tests {
         let ups = vec![make_upstream("a"), make_upstream("b"), make_upstream("c")];
 
         let ids: Vec<String> = (0..6)
-            .map(|_| select(&ups, UpstreamStrategy::RoundRobin, &rr).unwrap().id.clone())
+            .map(|_| {
+                select(&ups, UpstreamStrategy::RoundRobin, &rr)
+                    .unwrap()
+                    .id
+                    .clone()
+            })
             .collect();
         assert_eq!(ids, vec!["a", "b", "c", "a", "b", "c"]);
     }

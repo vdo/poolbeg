@@ -83,7 +83,10 @@ impl BlockTracker {
             let upstream = match self.select_best_upstream(&upstreams) {
                 Some(u) => u,
                 None => {
-                    warn!("[{}] no healthy upstreams available for block tracking", self.chain_name);
+                    warn!(
+                        "[{}] no healthy upstreams available for block tracking",
+                        self.chain_name
+                    );
                     continue;
                 }
             };
@@ -145,7 +148,8 @@ impl BlockTracker {
             debug!(
                 last = *last_block_number,
                 received = number,
-                "[{}] ignoring block from lagging upstream", self.chain_name
+                "[{}] ignoring block from lagging upstream",
+                self.chain_name
             );
             return Ok(());
         }
@@ -236,10 +240,17 @@ impl BlockTracker {
     /// Select the best healthy upstream using the configured strategy.
     /// Prefers higher-priority roles (primary > secondary > fallback),
     /// then applies the strategy within the best available tier.
-    fn select_best_upstream(&self, upstreams: &[Arc<UpstreamClient>]) -> Option<Arc<UpstreamClient>> {
+    fn select_best_upstream(
+        &self,
+        upstreams: &[Arc<UpstreamClient>],
+    ) -> Option<Arc<UpstreamClient>> {
         use crate::config::UpstreamRole;
 
-        for role in &[UpstreamRole::Primary, UpstreamRole::Secondary, UpstreamRole::Fallback] {
+        for role in &[
+            UpstreamRole::Primary,
+            UpstreamRole::Secondary,
+            UpstreamRole::Fallback,
+        ] {
             let tier: Vec<_> = upstreams
                 .iter()
                 .filter(|u| u.role == *role && u.is_healthy() && !u.is_disabled())

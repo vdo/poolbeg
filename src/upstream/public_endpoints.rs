@@ -69,10 +69,7 @@ pub async fn resolve_auto_public(chains: &mut [ChainConfig]) -> Result<()> {
         .context("failed to fetch public endpoints registry")?;
 
     if !resp.status().is_success() {
-        anyhow::bail!(
-            "public endpoints registry returned HTTP {}",
-            resp.status()
-        );
+        anyhow::bail!("public endpoints registry returned HTTP {}", resp.status());
     }
 
     let registry: EndpointsResponse = resp
@@ -95,11 +92,8 @@ pub async fn resolve_auto_public(chains: &mut [ChainConfig]) -> Result<()> {
         };
 
         // Collect existing HTTP URLs for dedup (owned to avoid borrow conflict)
-        let existing_urls: std::collections::HashSet<String> = chain
-            .upstreams
-            .iter()
-            .map(|u| u.http_url.clone())
-            .collect();
+        let existing_urls: std::collections::HashSet<String> =
+            chain.upstreams.iter().map(|u| u.http_url.clone()).collect();
 
         let mut added = 0usize;
         for (i, url) in entry.endpoints.iter().enumerate() {
@@ -121,7 +115,8 @@ pub async fn resolve_auto_public(chains: &mut [ChainConfig]) -> Result<()> {
             chain_id = chain.chain_id,
             added,
             total_public = entry.endpoints.len(),
-            "[{}] injected public endpoints as fallback upstreams", chain.name
+            "[{}] injected public endpoints as fallback upstreams",
+            chain.name
         );
     }
 
@@ -164,7 +159,7 @@ mod tests {
         let parsed: EndpointsResponse = serde_json::from_str(json).unwrap();
         assert_eq!(parsed.chains.get("1").unwrap().endpoints.len(), 2);
         assert_eq!(parsed.chains.get("42161").unwrap().endpoints.len(), 2);
-        assert!(parsed.chains.get("999").is_none());
+        assert!(!parsed.chains.contains_key("999"));
     }
 
     #[test]

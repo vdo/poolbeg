@@ -3,7 +3,7 @@ use reqwest::Client;
 use reqwest::header;
 use serde_json::Value;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tracing::debug;
 
@@ -52,7 +52,11 @@ pub struct UpstreamClient {
 }
 
 impl UpstreamClient {
-    pub fn new(config: &UpstreamConfig, disabled_retry_interval: Duration, chain_name: String) -> Result<Self> {
+    pub fn new(
+        config: &UpstreamConfig,
+        disabled_retry_interval: Duration,
+        chain_name: String,
+    ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
 
@@ -121,8 +125,7 @@ impl UpstreamClient {
             if self.has_too_many_http_errors() {
                 // Still over the HTTP error threshold — stay disabled,
                 // schedule another retry later.
-                *self.next_check_at.lock().unwrap() =
-                    Instant::now() + self.disabled_retry_interval;
+                *self.next_check_at.lock().unwrap() = Instant::now() + self.disabled_retry_interval;
                 return;
             }
             // HTTP errors have aged out — safe to re-enable
@@ -212,8 +215,7 @@ impl UpstreamClient {
             drop(times);
             self.disabled.store(true, Ordering::Relaxed);
             self.healthy.store(false, Ordering::Relaxed);
-            *self.next_check_at.lock().unwrap() =
-                Instant::now() + self.disabled_retry_interval;
+            *self.next_check_at.lock().unwrap() = Instant::now() + self.disabled_retry_interval;
         }
     }
 
@@ -243,11 +245,7 @@ impl UpstreamClient {
             if status.is_client_error() || status.is_server_error() {
                 self.record_http_error();
             }
-            anyhow::bail!(
-                "upstream {} returned HTTP {}",
-                self.id,
-                status,
-            );
+            anyhow::bail!("upstream {} returned HTTP {}", self.id, status,);
         }
 
         let resp: JsonRpcResponse = response.json().await?;

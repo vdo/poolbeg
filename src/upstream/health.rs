@@ -51,7 +51,13 @@ pub async fn health_check_loop(
             "chain" => chain_name.clone(),
             "upstream_id" => upstream.id.clone()
         )
-        .set(if upstream.is_disabled() { -1.0 } else if healthy { 1.0 } else { 0.0 });
+        .set(if upstream.is_disabled() {
+            -1.0
+        } else if healthy {
+            1.0
+        } else {
+            0.0
+        });
 
         if healthy {
             if was_disabled {
@@ -120,11 +126,15 @@ pub async fn upstream_status_loop(
 
         let cm = &state.chain_managers[chain_idx];
         let ws_clients = cm.ws_connections.load(std::sync::atomic::Ordering::Relaxed);
-        let ws_subs = cm.ws_subscriptions.load(std::sync::atomic::Ordering::Relaxed);
+        let ws_subs = cm
+            .ws_subscriptions
+            .load(std::sync::atomic::Ordering::Relaxed);
 
         metrics::gauge!("meddler_upstream_ok", "chain" => chain_name.clone()).set(ok as f64);
-        metrics::gauge!("meddler_upstream_unhealthy", "chain" => chain_name.clone()).set(unhealthy as f64);
-        metrics::gauge!("meddler_upstream_disabled", "chain" => chain_name.clone()).set(disabled as f64);
+        metrics::gauge!("meddler_upstream_unhealthy", "chain" => chain_name.clone())
+            .set(unhealthy as f64);
+        metrics::gauge!("meddler_upstream_disabled", "chain" => chain_name.clone())
+            .set(disabled as f64);
 
         info!(
             ok,

@@ -35,7 +35,11 @@ impl ChainManager {
     pub async fn new(config: &ChainConfig, cache: CacheLayer) -> Result<Self> {
         let mut upstreams = Vec::new();
         for upstream_config in &config.upstreams {
-            let client = UpstreamClient::new(upstream_config, config.disabled_retry_interval, config.name.clone())?;
+            let client = UpstreamClient::new(
+                upstream_config,
+                config.disabled_retry_interval,
+                config.name.clone(),
+            )?;
             upstreams.push(Arc::new(client));
         }
         let upstreams = Arc::new(upstreams);
@@ -80,7 +84,12 @@ impl ChainManager {
         {
             let upstreams = self.upstreams.clone();
             let chain_name = self.chain_name.clone();
-            tokio::spawn(health::upstream_status_loop(upstreams, chain_name, state.clone(), chain_idx));
+            tokio::spawn(health::upstream_status_loop(
+                upstreams,
+                chain_name,
+                state.clone(),
+                chain_idx,
+            ));
         }
 
         // Start block tracker
@@ -91,7 +100,10 @@ impl ChainManager {
             tracker.run(upstreams, cache).await;
         });
 
-        info!("[{}] started health checks and block tracker", self.chain_name);
+        info!(
+            "[{}] started health checks and block tracker",
+            self.chain_name
+        );
     }
 
     /// Subscribe to block events.
@@ -124,12 +136,13 @@ impl ChainManager {
             let preferred = strategy::select(&tier_upstreams, self.strategy, &self.round_robin);
 
             // Build an ordered attempt list: preferred first, then the rest
-            let mut attempt_order: Vec<Arc<UpstreamClient>> = Vec::with_capacity(tier_upstreams.len());
+            let mut attempt_order: Vec<Arc<UpstreamClient>> =
+                Vec::with_capacity(tier_upstreams.len());
             if let Some(ref pref) = preferred {
                 attempt_order.push(pref.clone());
             }
             for u in &tier_upstreams {
-                if preferred.as_ref().map_or(true, |p| !Arc::ptr_eq(p, u)) {
+                if preferred.as_ref().is_none_or(|p| !Arc::ptr_eq(p, u)) {
                     attempt_order.push(u.clone());
                 }
             }

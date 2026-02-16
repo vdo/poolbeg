@@ -173,7 +173,10 @@ pub struct ChainConfig {
     #[serde(default)]
     pub strategy: UpstreamStrategy,
     /// How long to wait before retrying a disabled upstream. Default: 24h.
-    #[serde(default = "default_disabled_retry_interval", deserialize_with = "deserialize_duration")]
+    #[serde(
+        default = "default_disabled_retry_interval",
+        deserialize_with = "deserialize_duration"
+    )]
     pub disabled_retry_interval: Duration,
     #[serde(default)]
     pub upstreams: Vec<UpstreamConfig>,
