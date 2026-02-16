@@ -1,10 +1,10 @@
-# Meddler - Implementation Plan
+# Poolbeg - Implementation Plan
 
 ## Overview
 
-Meddler is a high-performance Web3 JSON-RPC caching proxy written in Rust. It sits between clients and upstream EVM nodes (Infura, Alchemy, Ankr, self-hosted), providing Redis-backed caching, WebSocket subscription aggregation, and upstream failover. Primary focus: Arbitrum (4 blocks/sec), with multi-chain support.
+Poolbeg is a high-performance Web3 JSON-RPC caching proxy written in Rust. It sits between clients and upstream EVM nodes (Infura, Alchemy, Ankr, self-hosted), providing Redis-backed caching, WebSocket subscription aggregation, and upstream failover. Primary focus: Arbitrum (4 blocks/sec), with multi-chain support.
 
-**Drop-in replacement**: Clients connect to meddler exactly as they would to any Web3 RPC endpoint. Both HTTP (`POST /arbitrum`) and WebSocket (`ws://meddler:8080/arbitrum`) are served on the same port. A client using ethers.js, viem, web3.py, or any Web3 library can point at meddler with zero code changes - including `eth_subscribe` over WebSocket.
+**Drop-in replacement**: Clients connect to poolbeg exactly as they would to any Web3 RPC endpoint. Both HTTP (`POST /arbitrum`) and WebSocket (`ws://poolbeg:8080/arbitrum`) are served on the same port. A client using ethers.js, viem, web3.py, or any Web3 library can point at poolbeg with zero code changes - including `eth_subscribe` over WebSocket.
 
 ## Architecture
 
@@ -74,8 +74,8 @@ server:
   address: "0.0.0.0"
   port: 8080            # single port: HTTP + WS upgrade on same port
   # Clients connect exactly like a normal Web3 RPC:
-  #   HTTP:  curl -X POST http://meddler:8080/arbitrum -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-  #   WS:    wscat -c ws://meddler:8080/arbitrum
+  #   HTTP:  curl -X POST http://poolbeg:8080/arbitrum -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+  #   WS:    wscat -c ws://poolbeg:8080/arbitrum
   #          > {"jsonrpc":"2.0","method":"eth_subscribe","params":["newHeads"],"id":1}
   #          < {"jsonrpc":"2.0","result":"0x1","id":1}
   #          < {"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0x1","result":{...}}}
@@ -194,7 +194,7 @@ chains:
 
 **Goal**: Cache JSON-RPC responses in Redis with finality-aware TTLs. The cache is the single source of truth - both HTTP responses and WS subscriptions read from it.
 
-- Cache key: `meddler:{chain_id}:{blake3(normalized_request)}`
+- Cache key: `poolbeg:{chain_id}:{blake3(normalized_request)}`
 - On request: check Redis first; on hit, return cached response
 - On miss: forward to upstream, cache response based on policy
 - **Finality-aware caching**:
@@ -215,11 +215,11 @@ chains:
 
 ### Phase 5: Client-Facing WebSocket & Cache-Driven Subscriptions
 
-**Goal**: Full Web3-compatible WebSocket interface. Clients connect to meddler via WS and use it exactly like a real node. Subscriptions are served entirely from the cache/block tracker - no direct upstream WS passthrough.
+**Goal**: Full Web3-compatible WebSocket interface. Clients connect to poolbeg via WS and use it exactly like a real node. Subscriptions are served entirely from the cache/block tracker - no direct upstream WS passthrough.
 
 **Client-facing WS interface** (same port as HTTP, axum WS upgrade):
 - Route: `GET /{chain}` with `Upgrade: websocket` header (standard WS handshake)
-- Clients connect with any Web3 library: `new ethers.WebSocketProvider("ws://meddler:8080/arbitrum")`
+- Clients connect with any Web3 library: `new ethers.WebSocketProvider("ws://poolbeg:8080/arbitrum")`
 - **Full JSON-RPC over WS**: clients can send any JSON-RPC call over the WS connection (not just subscriptions). These go through the same cache layer as HTTP requests.
 - **`eth_subscribe` support** - clients subscribe exactly like they would against a real node:
   - `eth_subscribe("newHeads")` - new block headers
@@ -242,9 +242,9 @@ chains:
   - **Resilient**: upstream failover is handled by the Block Tracker, completely invisible to subscription clients
 
 **Client connection lifecycle**:
-1. Client opens WS to `ws://meddler:8080/arbitrum`
+1. Client opens WS to `ws://poolbeg:8080/arbitrum`
 2. Client sends `{"jsonrpc":"2.0","method":"eth_subscribe","params":["newHeads"],"id":1}`
-3. Meddler responds: `{"jsonrpc":"2.0","result":"0xabc123","id":1}` (subscription ID)
+3. Poolbeg responds: `{"jsonrpc":"2.0","result":"0xabc123","id":1}` (subscription ID)
 4. Block Tracker detects new block → caches in Redis → emits `NewBlock` event
 5. Subscription Manager reads header from cache → pushes to client: `{"jsonrpc":"2.0","method":"eth_subscription","params":{"subscription":"0xabc123","result":{...block header...}}}`
 6. Client can also send regular RPC: `{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x...","latest"],"id":2}` → cached response
@@ -256,13 +256,13 @@ chains:
 
 **Goal**: Prometheus metrics and structured logging.
 
-- Request metrics: `meddler_requests_total{chain, method, status, cache_hit}`
-- Latency: `meddler_request_duration_seconds{chain, method, upstream}`
-- Upstream health: `meddler_upstream_healthy{chain, upstream_id}`
-- Upstream block height: `meddler_upstream_block_height{chain, upstream_id}`
-- Cache metrics: `meddler_cache_hits_total`, `meddler_cache_misses_total`, `meddler_cache_size_bytes`
-- WS metrics: `meddler_ws_active_connections{chain}`, `meddler_ws_active_subscriptions{chain, subscription_type}`
-- Redis metrics: `meddler_redis_pool_active`, `meddler_redis_latency_seconds`
+- Request metrics: `poolbeg_requests_total{chain, method, status, cache_hit}`
+- Latency: `poolbeg_request_duration_seconds{chain, method, upstream}`
+- Upstream health: `poolbeg_upstream_healthy{chain, upstream_id}`
+- Upstream block height: `poolbeg_upstream_block_height{chain, upstream_id}`
+- Cache metrics: `poolbeg_cache_hits_total`, `poolbeg_cache_misses_total`, `poolbeg_cache_size_bytes`
+- WS metrics: `poolbeg_ws_active_connections{chain}`, `poolbeg_ws_active_subscriptions{chain, subscription_type}`
+- Redis metrics: `poolbeg_redis_pool_active`, `poolbeg_redis_latency_seconds`
 - Prometheus endpoint: `GET /metrics`
 - **Files**: `src/metrics.rs`
 
@@ -280,22 +280,22 @@ chains:
 
 **Goal**: Kubernetes deployment with Redis sidecar.
 
-- Chart structure: `charts/meddler/`
-- Deployment with meddler container + Redis sidecar (like dshackle)
+- Chart structure: `charts/poolbeg/`
+- Deployment with poolbeg container + Redis sidecar (like dshackle)
 - ConfigMap for `config.yaml`
 - Secret for upstream API keys
 - Service + Ingress
 - ServiceMonitor for Prometheus scraping
 - HPA based on CPU/request rate
-- Values: image tag, replica count, resource limits, Redis config, meddler config overrides
-- **Files**: `charts/meddler/`
+- Values: image tag, replica count, resource limits, Redis config, poolbeg config overrides
+- **Files**: `charts/poolbeg/`
 
 ---
 
 ## Project Structure
 
 ```
-meddler/
+poolbeg/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── config.example.yaml
@@ -308,7 +308,7 @@ meddler/
 │       ├── docker.yml
 │       └── release.yml
 ├── charts/
-│   └── meddler/
+│   └── poolbeg/
 │       ├── Chart.yaml
 │       ├── values.yaml
 │       └── templates/

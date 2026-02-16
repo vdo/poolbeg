@@ -28,7 +28,7 @@
   <!-- Background -->
   <rect width="480" height="160" rx="16" fill="url(#bg)"/>
 
-  <!-- Icon: stylized blocks flowing through a diamond (the "meddler") -->
+  <!-- Icon: stylized blocks flowing through a diamond (the proxy) -->
   <g transform="translate(40, 30)">
     <!-- Incoming block (left) -->
     <rect x="0" y="35" width="22" height="22" rx="4" fill="url(#block)" opacity="0.5"/>
@@ -37,7 +37,7 @@
     <!-- Flow arrow left -->
     <line x1="40" y1="42" x2="52" y2="42" stroke="#e94560" stroke-width="2" stroke-dasharray="4,3" opacity="0.6"/>
 
-    <!-- Central diamond — the meddler/proxy -->
+    <!-- Central diamond — the poolbeg/proxy -->
     <g filter="glow">
       <polygon points="80,16 108,44 80,72 52,44" fill="none" stroke="url(#accent)" stroke-width="2.5"/>
       <polygon points="80,24 102,44 80,64 58,44" fill="url(#cache)" opacity="0.15"/>
@@ -65,10 +65,10 @@
     <text x="80" y="96" text-anchor="middle" fill="#e94560" font-family="monospace" font-size="8" opacity="0.5">redis</text>
   </g>
 
-  <!-- Text: MEDDLER -->
+  <!-- Text: POOLBEG -->
   <g transform="translate(210, 55)">
     <text font-family="'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace" font-size="42" font-weight="700" fill="#e8e8e8" letter-spacing="4">
-      MEDDLER
+      POOLBEG
     </text>
   </g>
 

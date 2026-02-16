@@ -2,16 +2,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "meddler.fullname" . }}
+  name: {{ include "poolbeg.fullname" . }}
   labels:
-    {{- include "meddler.labels" . | nindent 4 }}
+    {{- include "poolbeg.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   selector:
     matchLabels:
-      {{- include "meddler.selectorLabels" . | nindent 6 }}
+      {{- include "poolbeg.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       path: {{ .Values.config.server.metrics.path }}

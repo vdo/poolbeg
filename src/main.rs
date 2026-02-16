@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-use meddler::config;
-use meddler::server;
+use poolbeg::config;
+use poolbeg::server;
 
 #[derive(Parser, Debug)]
-#[command(name = "meddler", about = "Web3 JSON-RPC caching proxy")]
+#[command(name = "poolbeg", about = "Web3 JSON-RPC caching proxy")]
 struct Cli {
     /// Path to the configuration file
     #[arg(short, long, default_value = "config.yaml")]
@@ -42,14 +42,14 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
-    info!("meddler v{}", env!("CARGO_PKG_VERSION"));
+    info!("poolbeg v{}", env!("CARGO_PKG_VERSION"));
 
     // Load config
     let mut config = config::Config::load(&cli.config)?;
     info!(chains = config.chains.len(), "configuration loaded");
 
     // Resolve auto_public chains by fetching public RPC endpoints
-    meddler::upstream::public_endpoints::resolve_auto_public(&mut config.chains).await?;
+    poolbeg::upstream::public_endpoints::resolve_auto_public(&mut config.chains).await?;
 
     for chain in &config.chains {
         info!(

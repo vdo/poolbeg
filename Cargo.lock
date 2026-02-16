@@ -2341,40 +2341,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
-name = "meddler"
-version = "0.2.0"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-eth",
- "anyhow",
- "axum",
- "blake3",
- "chrono",
- "clap",
- "figment",
- "fred",
- "futures-util",
- "metrics",
- "metrics-exporter-prometheus",
- "once_cell",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite 0.26.2",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2672,6 +2638,40 @@ checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
 dependencies = [
  "der",
  "spki",
+]
+
+[[package]]
+name = "poolbeg"
+version = "0.2.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "anyhow",
+ "axum",
+ "blake3",
+ "chrono",
+ "clap",
+ "figment",
+ "fred",
+ "futures-util",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "once_cell",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

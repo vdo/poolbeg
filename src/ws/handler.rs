@@ -52,7 +52,7 @@ async fn handle_ws_connection(socket: WebSocket, state: Arc<AppState>, chain_idx
     state.ws_connection_count.fetch_add(1, Ordering::Relaxed);
     chain_mgr.ws_connections.fetch_add(1, Ordering::Relaxed);
 
-    metrics::gauge!("meddler_ws_active_connections", "chain" => chain_name.clone()).increment(1.0);
+    metrics::gauge!("poolbeg_ws_active_connections", "chain" => chain_name.clone()).increment(1.0);
 
     // Create subscription manager for this connection's chain
     let sub_mgr = Arc::new(SubscriptionManager::new(
@@ -114,7 +114,7 @@ async fn handle_ws_connection(socket: WebSocket, state: Arc<AppState>, chain_idx
     state.ws_connection_count.fetch_sub(1, Ordering::Relaxed);
     chain_mgr.ws_connections.fetch_sub(1, Ordering::Relaxed);
 
-    metrics::gauge!("meddler_ws_active_connections", "chain" => chain_name.clone()).decrement(1.0);
+    metrics::gauge!("poolbeg_ws_active_connections", "chain" => chain_name.clone()).decrement(1.0);
     info!("[{chain_name}] WebSocket connection closed");
 }
 

@@ -1,12 +1,12 @@
 services:
-  meddler:
+  poolbeg:
     build: .
     ports:
       - "8080:8080"
       - "9090:9090"
     volumes:
       # Mount your config — use config.example.yaml for mainnet or config.arbitrum-sepolia.yaml for testnet
-      - ./config.example.yaml:/etc/meddler/config.yaml:ro
+      - ./config.example.yaml:/etc/poolbeg/config.yaml:ro
     environment:
       - REDIS_URL=redis://redis:6379
       - INFURA_KEY=${INFURA_KEY:-}

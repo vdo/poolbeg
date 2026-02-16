@@ -62,7 +62,7 @@ pub async fn client_rate_limit(
     };
 
     if !allowed {
-        metrics::counter!("meddler_client_rate_limited_total").increment(1);
+        metrics::counter!("poolbeg_client_rate_limited_total").increment(1);
 
         let error_body = serde_json::json!({
             "jsonrpc": "2.0",

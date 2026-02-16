@@ -2,14 +2,14 @@
 <div align="center">
 
 <picture>
-  <img alt="meddler" src="logo.svg" width="480">
+  <img alt="poolbeg" src="logo.svg" width="480">
 </picture>
 
 <br/><br/>
 
-[![CI](https://github.com/vdo/meddler/actions/workflows/ci.yml/badge.svg)](https://github.com/vdo/meddler/actions/workflows/ci.yml)
-[![Release](https://github.com/vdo/meddler/actions/workflows/release.yml/badge.svg)](https://github.com/vdo/meddler/actions/workflows/release.yml)
-[![CodeQL](https://github.com/vdo/meddler/actions/workflows/codeql.yml/badge.svg)](https://github.com/vdo/meddler/actions/workflows/codeql.yml)
+[![CI](https://github.com/vdo/poolbeg/actions/workflows/ci.yml/badge.svg)](https://github.com/vdo/poolbeg/actions/workflows/ci.yml)
+[![Release](https://github.com/vdo/poolbeg/actions/workflows/release.yml/badge.svg)](https://github.com/vdo/poolbeg/actions/workflows/release.yml)
+[![CodeQL](https://github.com/vdo/poolbeg/actions/workflows/codeql.yml/badge.svg)](https://github.com/vdo/poolbeg/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
@@ -17,7 +17,7 @@
 
 ---
 
-Meddler sits between your app and upstream EVM RPC nodes (Infura, Ankr, self-hosted), providing **Redis-backed caching**, **WebSocket subscription fan-out**, and **automatic upstream failover**. Clients connect to meddler as a drop-in replacement — zero code changes needed.
+Poolbeg sits between your app and upstream EVM RPC nodes (Infura, Ankr, self-hosted), providing **Redis-backed caching**, **WebSocket subscription fan-out**, and **automatic upstream failover**. Clients connect to poolbeg as a drop-in replacement — zero code changes needed.
 
 ## Features
 
@@ -35,8 +35,8 @@ Meddler sits between your app and upstream EVM RPC nodes (Infura, Ankr, self-hos
 
 ```bash
 # Clone and configure
-git clone https://github.com/vdo/meddler.git
-cd meddler
+git clone https://github.com/vdo/poolbeg.git
+cd poolbeg
 cp .env.example .env
 # Edit .env with your Infura key (or other provider)
 
@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Meddler is now listening:
+Poolbeg is now listening:
 - **HTTP** — `http://localhost:8080/ethereum`
 - **WebSocket** — `ws://localhost:8080/ethereum`
 - **Metrics** — `http://localhost:9090/metrics`
@@ -79,7 +79,7 @@ ws.on("block", (blockNumber) => console.log("new block:", blockNumber));
 
 ## Configuration
 
-Meddler uses a YAML config file with `${VAR}` and `${VAR:-default}` environment variable interpolation.
+Poolbeg uses a YAML config file with `${VAR}` and `${VAR:-default}` environment variable interpolation.
 
 ```yaml
 server:
@@ -125,7 +125,7 @@ chains:
 
 ### Adding more chains
 
-Meddler supports multiple chains from a single instance. Just add another entry under `chains:`:
+Poolbeg supports multiple chains from a single instance. Just add another entry under `chains:`:
 
 ```yaml
   - name: arbitrum
@@ -169,7 +169,7 @@ Meddler supports multiple chains from a single instance. Just add another entry 
 
 ### Auto-Public Endpoints
 
-Meddler can automatically discover and add public RPC endpoints for any chain using the [eRPC public endpoints registry](https://evm-public-endpoints.erpc.cloud/). Set `auto_public: true` on a chain and meddler will fetch the registry at startup, injecting all matching endpoints as `fallback` upstreams.
+Poolbeg can automatically discover and add public RPC endpoints for any chain using the [eRPC public endpoints registry](https://evm-public-endpoints.erpc.cloud/). Set `auto_public: true` on a chain and poolbeg will fetch the registry at startup, injecting all matching endpoints as `fallback` upstreams.
 
 ```yaml
 chains:
@@ -191,7 +191,7 @@ You can even define a chain with **no manual upstreams at all** — just `auto_p
 
 ### Upstream selection strategy
 
-Each chain can configure how meddler picks among healthy upstreams within a tier:
+Each chain can configure how poolbeg picks among healthy upstreams within a tier:
 
 | Strategy | Config value | Behavior |
 |----------|-------------|----------|
@@ -245,12 +245,12 @@ chains:
 ### Docker
 
 ```bash
-docker build -t meddler .
+docker build -t poolbeg .
 docker run -p 8080:8080 -p 9090:9090 \
-  -v $(pwd)/config.example.yaml:/etc/meddler/config.yaml \
+  -v $(pwd)/config.example.yaml:/etc/poolbeg/config.yaml \
   -e INFURA_KEY=your_key \
   -e REDIS_URL=redis://your-redis:6379 \
-  meddler
+  poolbeg
 ```
 
 ### Docker Compose
@@ -263,37 +263,37 @@ docker compose up --build
 ### Helm
 
 ```bash
-helm install meddler ./charts/meddler \
+helm install poolbeg ./charts/poolbeg \
   --set secrets.INFURA_KEY=your_key
 
 # Or with an existing secret (External Secrets Operator, Sealed Secrets, etc.)
-helm install meddler ./charts/meddler \
+helm install poolbeg ./charts/poolbeg \
   --set existingSecret=my-rpc-keys
 ```
 
-The Helm chart deploys meddler with a **Redis sidecar** by default (like [dshackle](https://github.com/emeraldpay/dshackle)).
+The Helm chart deploys poolbeg with a **Redis sidecar** by default (like [dshackle](https://github.com/emeraldpay/dshackle)).
 
 ### Build from source
 
 ```bash
 cargo build --release
-./target/release/meddler --config config.example.yaml
+./target/release/poolbeg --config config.example.yaml
 ```
 
 ## Metrics
 
-Meddler exposes Prometheus metrics on a separate port (default `9090`):
+Poolbeg exposes Prometheus metrics on a separate port (default `9090`):
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `meddler_requests_total` | counter | Total JSON-RPC requests `{chain, method, status, cache_hit}` |
-| `meddler_cache_hits_total` | counter | Cache hits `{chain, method}` |
-| `meddler_cache_misses_total` | counter | Cache misses `{chain, method}` |
-| `meddler_upstream_healthy` | gauge | Upstream health `{chain, upstream_id}` (1=up, 0=down) |
-| `meddler_upstream_block_height` | gauge | Latest block per upstream `{upstream_id}` |
-| `meddler_chain_head_block` | gauge | Chain head block number `{chain}` |
-| `meddler_ws_active_connections` | gauge | Active WebSocket connections `{chain}` |
-| `meddler_ws_active_subscriptions` | gauge | Active subscriptions `{chain, subscription_type}` |
+| `poolbeg_requests_total` | counter | Total JSON-RPC requests `{chain, method, status, cache_hit}` |
+| `poolbeg_cache_hits_total` | counter | Cache hits `{chain, method}` |
+| `poolbeg_cache_misses_total` | counter | Cache misses `{chain, method}` |
+| `poolbeg_upstream_healthy` | gauge | Upstream health `{chain, upstream_id}` (1=up, 0=down) |
+| `poolbeg_upstream_block_height` | gauge | Latest block per upstream `{upstream_id}` |
+| `poolbeg_chain_head_block` | gauge | Chain head block number `{chain}` |
+| `poolbeg_ws_active_connections` | gauge | Active WebSocket connections `{chain}` |
+| `poolbeg_ws_active_subscriptions` | gauge | Active subscriptions `{chain, subscription_type}` |
 
 ## Inspired by
 

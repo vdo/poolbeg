@@ -202,7 +202,7 @@ impl BlockTracker {
         *last_block_number = number;
         *last_block_hash = hash;
 
-        metrics::gauge!("meddler_chain_head_block",
+        metrics::gauge!("poolbeg_chain_head_block",
             "chain" => self.chain_name.clone()
         )
         .set(number as f64);

@@ -150,7 +150,7 @@ impl ChainManager {
             for upstream in &attempt_order {
                 // Check per-upstream rate limit
                 if !upstream.try_acquire_rate_limit() {
-                    metrics::counter!("meddler_upstream_rate_limited_total",
+                    metrics::counter!("poolbeg_upstream_rate_limited_total",
                         "chain" => self.chain_name.clone(),
                         "upstream" => upstream.id.clone()
                     )
@@ -161,7 +161,7 @@ impl ChainManager {
                 match upstream.send_request(req).await {
                     Ok(resp) => {
                         upstream.record_success();
-                        metrics::counter!("meddler_requests_total",
+                        metrics::counter!("poolbeg_requests_total",
                             "chain" => self.chain_name.clone(),
                             "method" => req.method.clone(),
                             "status" => "ok",

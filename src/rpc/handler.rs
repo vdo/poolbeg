@@ -95,7 +95,7 @@ pub async fn process_single_request(
     if !is_uncacheable(&method) {
         if let Some(cached) = cache.get(chain_config.chain_id, &req).await {
             debug!(method = %method, "[{chain_name}] cache hit");
-            metrics::counter!("meddler_cache_hits_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
+            metrics::counter!("poolbeg_cache_hits_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
             let mut resp: JsonRpcResponse = match serde_json::from_str(&cached) {
                 Ok(r) => r,
                 Err(_) => {
@@ -115,7 +115,7 @@ pub async fn process_single_request(
             resp.id = original_id;
             return resp;
         }
-        metrics::counter!("meddler_cache_misses_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
+        metrics::counter!("poolbeg_cache_misses_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
     }
 
     forward_to_upstream(chain_mgr, cache, chain_name, chain_config, req, original_id).await
@@ -152,7 +152,7 @@ async fn forward_to_upstream(
         }
         Err(e) => {
             warn!(method = %method, error = %e, "[{chain_name}] upstream request failed");
-            metrics::counter!("meddler_requests_total",
+            metrics::counter!("poolbeg_requests_total",
                 "chain" => chain_name.to_string(),
                 "method" => method,
                 "status" => "error",

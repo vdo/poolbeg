@@ -398,40 +398,40 @@ mod tests {
 
     #[test]
     fn test_interpolate_env_vars_simple() {
-        unsafe { std::env::set_var("MEDDLER_TEST_KEY", "hello") };
-        let result = interpolate_env_vars("prefix-${MEDDLER_TEST_KEY}-suffix");
+        unsafe { std::env::set_var("POOLBEG_TEST_KEY", "hello") };
+        let result = interpolate_env_vars("prefix-${POOLBEG_TEST_KEY}-suffix");
         assert_eq!(result, "prefix-hello-suffix");
-        unsafe { std::env::remove_var("MEDDLER_TEST_KEY") };
+        unsafe { std::env::remove_var("POOLBEG_TEST_KEY") };
     }
 
     #[test]
     fn test_interpolate_env_vars_missing() {
-        unsafe { std::env::remove_var("MEDDLER_MISSING_VAR") };
-        let result = interpolate_env_vars("url/${MEDDLER_MISSING_VAR}/path");
+        unsafe { std::env::remove_var("POOLBEG_MISSING_VAR") };
+        let result = interpolate_env_vars("url/${POOLBEG_MISSING_VAR}/path");
         assert_eq!(result, "url//path");
     }
 
     #[test]
     fn test_interpolate_env_vars_default() {
-        unsafe { std::env::remove_var("MEDDLER_UNSET_VAR") };
-        let result = interpolate_env_vars("${MEDDLER_UNSET_VAR:-fallback_value}");
+        unsafe { std::env::remove_var("POOLBEG_UNSET_VAR") };
+        let result = interpolate_env_vars("${POOLBEG_UNSET_VAR:-fallback_value}");
         assert_eq!(result, "fallback_value");
     }
 
     #[test]
     fn test_interpolate_env_vars_default_overridden() {
-        unsafe { std::env::set_var("MEDDLER_SET_VAR", "actual") };
-        let result = interpolate_env_vars("${MEDDLER_SET_VAR:-fallback}");
+        unsafe { std::env::set_var("POOLBEG_SET_VAR", "actual") };
+        let result = interpolate_env_vars("${POOLBEG_SET_VAR:-fallback}");
         assert_eq!(result, "actual");
-        unsafe { std::env::remove_var("MEDDLER_SET_VAR") };
+        unsafe { std::env::remove_var("POOLBEG_SET_VAR") };
     }
 
     #[test]
     fn test_interpolate_env_vars_empty_uses_default() {
-        unsafe { std::env::set_var("MEDDLER_EMPTY_VAR", "") };
-        let result = interpolate_env_vars("${MEDDLER_EMPTY_VAR:-default}");
+        unsafe { std::env::set_var("POOLBEG_EMPTY_VAR", "") };
+        let result = interpolate_env_vars("${POOLBEG_EMPTY_VAR:-default}");
         assert_eq!(result, "default");
-        unsafe { std::env::remove_var("MEDDLER_EMPTY_VAR") };
+        unsafe { std::env::remove_var("POOLBEG_EMPTY_VAR") };
     }
 
     #[test]

@@ -2,7 +2,7 @@ use crate::rpc::types::{JsonRpcRequest, normalize_for_cache};
 use blake3::Hasher;
 
 /// Generate a Redis cache key for a JSON-RPC request.
-/// Format: `meddler:{chain_id}:{blake3_hash}`
+/// Format: `poolbeg:{chain_id}:{blake3_hash}`
 pub fn cache_key(chain_id: u64, req: &JsonRpcRequest) -> String {
     let normalized = normalize_for_cache(req);
     let json_bytes = serde_json::to_vec(&normalized).unwrap_or_default();
@@ -11,27 +11,27 @@ pub fn cache_key(chain_id: u64, req: &JsonRpcRequest) -> String {
     hasher.update(&json_bytes);
     let hash = hasher.finalize();
 
-    format!("meddler:{}:{}", chain_id, hash.to_hex())
+    format!("poolbeg:{}:{}", chain_id, hash.to_hex())
 }
 
 /// Cache key for a block by number.
 pub fn block_by_number_key(chain_id: u64, number: u64) -> String {
-    format!("meddler:{}:block:number:{}", chain_id, number)
+    format!("poolbeg:{}:block:number:{}", chain_id, number)
 }
 
 /// Cache key for a block by hash.
 pub fn block_by_hash_key(chain_id: u64, hash: &str) -> String {
-    format!("meddler:{}:block:hash:{}", chain_id, hash)
+    format!("poolbeg:{}:block:hash:{}", chain_id, hash)
 }
 
 /// Cache key for logs of a specific block.
 pub fn block_logs_key(chain_id: u64, block_number: u64) -> String {
-    format!("meddler:{}:logs:{}", chain_id, block_number)
+    format!("poolbeg:{}:logs:{}", chain_id, block_number)
 }
 
 /// Redis set key tracking unfinalized (head) cache entries for a chain.
 pub fn head_cache_set_key(chain_id: u64) -> String {
-    format!("meddler:{}:head_cache", chain_id)
+    format!("poolbeg:{}:head_cache", chain_id)
 }
 
 #[cfg(test)]
@@ -53,9 +53,9 @@ mod tests {
     fn test_cache_key_format() {
         let req = make_request("eth_blockNumber", json!([]));
         let key = cache_key(1, &req);
-        assert!(key.starts_with("meddler:1:"));
+        assert!(key.starts_with("poolbeg:1:"));
         // blake3 hex is 64 chars
-        let hash_part = key.strip_prefix("meddler:1:").unwrap();
+        let hash_part = key.strip_prefix("poolbeg:1:").unwrap();
         assert_eq!(hash_part.len(), 64);
     }
 
@@ -90,8 +90,8 @@ mod tests {
         let key1 = cache_key(1, &req);
         let key2 = cache_key(42161, &req);
         assert_ne!(key1, key2);
-        assert!(key1.starts_with("meddler:1:"));
-        assert!(key2.starts_with("meddler:42161:"));
+        assert!(key1.starts_with("poolbeg:1:"));
+        assert!(key2.starts_with("poolbeg:42161:"));
     }
 
     #[test]
@@ -112,28 +112,28 @@ mod tests {
     fn test_block_by_number_key_format() {
         assert_eq!(
             block_by_number_key(1, 12345),
-            "meddler:1:block:number:12345"
+            "poolbeg:1:block:number:12345"
         );
         assert_eq!(
             block_by_number_key(42161, 0),
-            "meddler:42161:block:number:0"
+            "poolbeg:42161:block:number:0"
         );
     }
 
     #[test]
     fn test_block_by_hash_key_format() {
         let hash = "0xabc123";
-        assert_eq!(block_by_hash_key(1, hash), "meddler:1:block:hash:0xabc123");
+        assert_eq!(block_by_hash_key(1, hash), "poolbeg:1:block:hash:0xabc123");
     }
 
     #[test]
     fn test_block_logs_key_format() {
-        assert_eq!(block_logs_key(1, 100), "meddler:1:logs:100");
+        assert_eq!(block_logs_key(1, 100), "poolbeg:1:logs:100");
     }
 
     #[test]
     fn test_head_cache_set_key_format() {
-        assert_eq!(head_cache_set_key(1), "meddler:1:head_cache");
-        assert_eq!(head_cache_set_key(42161), "meddler:42161:head_cache");
+        assert_eq!(head_cache_set_key(1), "poolbeg:1:head_cache");
+        assert_eq!(head_cache_set_key(42161), "poolbeg:42161:head_cache");
     }
 }
