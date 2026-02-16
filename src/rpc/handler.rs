@@ -31,12 +31,28 @@ pub async fn handle_rpc(
                 &state.cache,
                 chain_name,
                 &state.config.chains[chain_idx],
+                &state.config.server.blocked_methods,
                 req,
             )
             .await;
             RpcResponse::Single(resp)
         }
         RpcRequest::Batch(reqs) => {
+            // Enforce batch size limit
+            let max_batch = state.config.server.max_batch_size;
+            if reqs.len() > max_batch {
+                let resp = JsonRpcResponse::error(
+                    serde_json::Value::Null,
+                    -32600,
+                    format!(
+                        "Batch too large: {} requests exceeds limit of {}",
+                        reqs.len(),
+                        max_batch
+                    ),
+                );
+                return (StatusCode::OK, Json(RpcResponse::Single(resp)));
+            }
+
             let mut responses = Vec::with_capacity(reqs.len());
             for req in reqs {
                 let resp = process_single_request(
@@ -44,6 +60,7 @@ pub async fn handle_rpc(
                     &state.cache,
                     chain_name,
                     &state.config.chains[chain_idx],
+                    &state.config.server.blocked_methods,
                     req,
                 )
                 .await;
@@ -61,12 +78,18 @@ pub async fn process_single_request(
     cache: &CacheLayer,
     chain_name: &str,
     chain_config: &crate::config::ChainConfig,
+    blocked_methods: &[String],
     req: JsonRpcRequest,
 ) -> JsonRpcResponse {
     let original_id = req.id.clone();
     let method = req.method.clone();
 
     debug!(chain = %chain_name, method = %method, "processing request");
+
+    // Check blocked methods
+    if is_method_blocked(&method, blocked_methods) {
+        return JsonRpcResponse::error(original_id, -32601, "Method not allowed");
+    }
 
     // Check cache first (unless uncacheable)
     if !is_uncacheable(&method) {

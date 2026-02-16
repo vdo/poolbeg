@@ -94,6 +94,13 @@ pub fn normalize_for_cache(req: &JsonRpcRequest) -> Value {
     })
 }
 
+/// Check if a method is blocked by any of the configured prefixes.
+pub fn is_method_blocked(method: &str, blocked: &[String]) -> bool {
+    blocked
+        .iter()
+        .any(|prefix| method.starts_with(prefix.as_str()))
+}
+
 /// Methods that should never be cached.
 pub fn is_uncacheable(method: &str) -> bool {
     matches!(
@@ -283,5 +290,25 @@ mod tests {
         assert!(resp.result.is_some());
         assert!(resp.error.is_none());
         assert_eq!(resp.result.unwrap(), json!("0x10"));
+    }
+
+    #[test]
+    fn test_is_method_blocked() {
+        let blocked = vec![
+            "admin_".to_string(),
+            "debug_".to_string(),
+            "personal_".to_string(),
+        ];
+        assert!(is_method_blocked("admin_nodeInfo", &blocked));
+        assert!(is_method_blocked("debug_traceTransaction", &blocked));
+        assert!(is_method_blocked("personal_unlockAccount", &blocked));
+        assert!(!is_method_blocked("eth_blockNumber", &blocked));
+        assert!(!is_method_blocked("eth_call", &blocked));
+    }
+
+    #[test]
+    fn test_is_method_blocked_empty() {
+        let blocked: Vec<String> = vec![];
+        assert!(!is_method_blocked("admin_nodeInfo", &blocked));
     }
 }

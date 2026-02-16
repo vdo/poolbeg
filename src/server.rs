@@ -1,18 +1,24 @@
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::atomic::AtomicUsize;
+use std::sync::{Arc, Mutex};
 
 use axum::{
     Router,
     http::StatusCode,
+    middleware,
     response::IntoResponse,
     routing::{get, post},
 };
 use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
 use crate::cache::CacheLayer;
 use crate::config::Config;
 use crate::metrics as app_metrics;
+use crate::middleware::auth::auth_middleware;
+use crate::middleware::rate_limit::{RateLimiter, client_rate_limit};
 use crate::rpc;
 use crate::upstream::manager::ChainManager;
 use crate::ws;
@@ -22,6 +28,7 @@ pub struct AppState {
     pub config: Config,
     pub chain_managers: Vec<ChainManager>,
     pub cache: CacheLayer,
+    pub ws_connection_count: AtomicUsize,
 }
 
 /// Build the application: connect to Redis, create chain managers, start
@@ -49,6 +56,7 @@ pub async fn setup(config: Config) -> anyhow::Result<Router> {
         config: config.clone(),
         chain_managers,
         cache,
+        ws_connection_count: AtomicUsize::new(0),
     });
 
     // Start block trackers for each chain
@@ -73,8 +81,27 @@ pub async fn setup(config: Config) -> anyhow::Result<Router> {
         );
     }
 
+    // Apply middleware layers (in reverse order of execution)
+    let app = app.layer(CorsLayer::permissive());
+
+    // Auth middleware (conditional — only when enabled with at least one key)
+    let app = if config.server.auth.enabled && !config.server.auth.api_keys.is_empty() {
+        let valid_keys: HashSet<String> = config.server.auth.api_keys.iter().cloned().collect();
+        let valid_keys = Arc::new(valid_keys);
+        info!("API key authentication enabled ({} keys)", valid_keys.len());
+        app.layer(middleware::from_fn_with_state(valid_keys, auth_middleware))
+    } else {
+        app
+    };
+
+    // Client rate limit middleware
+    let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(config.server.max_rps)));
     let app = app
-        .layer(CorsLayer::permissive())
+        .layer(middleware::from_fn_with_state(
+            rate_limiter,
+            client_rate_limit,
+        ))
+        .layer(RequestBodyLimitLayer::new(config.server.max_body_size))
         .layer(TraceLayer::new_for_http());
 
     Ok(app)

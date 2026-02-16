@@ -10,15 +10,13 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   # ── Lint ──────────────────────────────────────────────────────────
   fmt:
     name: Format
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -29,6 +27,8 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -41,16 +41,31 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit
+      - run: cargo audit
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [fmt, clippy, test]
+    permissions:
+      contents: read
     services:
       redis:
         image: redis:7-alpine
@@ -76,6 +91,9 @@ jobs:
     name: Docker Build & Push
     runs-on: ubuntu-latest
     needs: [integration]
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +131,8 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs: [docker]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

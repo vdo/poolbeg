@@ -10,20 +10,33 @@ on:
 
 jobs:
   analyze:
-    name: Analyze
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       actions: read
       contents: read
 
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, rust]
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        if: matrix.language == 'rust'
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: actions
+          languages: ${{ matrix.language }}
+
+      - name: Build Rust
+        if: matrix.language == 'rust'
+        run: cargo build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

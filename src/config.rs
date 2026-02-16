@@ -20,6 +20,26 @@ pub struct ServerConfig {
     pub port: u16,
     #[serde(default)]
     pub metrics: MetricsConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
+    #[serde(default = "default_server_max_rps")]
+    pub max_rps: u32,
+    #[serde(default = "default_max_body_size")]
+    pub max_body_size: usize,
+    #[serde(default = "default_max_batch_size")]
+    pub max_batch_size: usize,
+    #[serde(default = "default_max_ws_connections")]
+    pub max_ws_connections: usize,
+    #[serde(default = "default_blocked_methods")]
+    pub blocked_methods: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct AuthConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub api_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -203,6 +223,27 @@ fn default_role() -> UpstreamRole {
 }
 fn default_max_rps() -> u32 {
     100
+}
+fn default_server_max_rps() -> u32 {
+    1000
+}
+fn default_max_body_size() -> usize {
+    1_048_576 // 1MB
+}
+fn default_max_batch_size() -> usize {
+    100
+}
+fn default_max_ws_connections() -> usize {
+    1024
+}
+fn default_blocked_methods() -> Vec<String> {
+    vec![
+        "admin_".to_string(),
+        "debug_".to_string(),
+        "personal_".to_string(),
+        "miner_".to_string(),
+        "txpool_".to_string(),
+    ]
 }
 
 /// Interpolate ${VAR} and ${VAR:-default} patterns in a string with environment variable values.

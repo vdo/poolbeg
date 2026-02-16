@@ -46,6 +46,18 @@ fn test_config() -> Config {
                 port: 0,
                 path: "/metrics".to_string(),
             },
+            auth: AuthConfig::default(),
+            max_rps: 1000,
+            max_body_size: 1_048_576,
+            max_batch_size: 100,
+            max_ws_connections: 1024,
+            blocked_methods: vec![
+                "admin_".to_string(),
+                "debug_".to_string(),
+                "personal_".to_string(),
+                "miner_".to_string(),
+                "txpool_".to_string(),
+            ],
         },
         cache: CacheConfig {
             redis: RedisConfig {

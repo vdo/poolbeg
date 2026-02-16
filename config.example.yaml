@@ -6,6 +6,34 @@ server:
     port: 9090
     path: "/metrics"
 
+  # API key authentication (optional)
+  auth:
+    enabled: false
+    api_keys: []
+    # api_keys:
+    #   - "your-secret-api-key-1"
+    #   - "your-secret-api-key-2"
+
+  # Client-side rate limit (requests per second across all endpoints)
+  max_rps: 1000
+
+  # Maximum request body size in bytes (default: 1MB)
+  max_body_size: 1048576
+
+  # Maximum number of requests in a single JSON-RPC batch
+  max_batch_size: 100
+
+  # Maximum concurrent WebSocket connections
+  max_ws_connections: 1024
+
+  # Block methods matching these prefixes (e.g. admin_, debug_)
+  blocked_methods:
+    - "admin_"
+    - "debug_"
+    - "personal_"
+    - "miner_"
+    - "txpool_"
+
 cache:
   redis:
     url: "${REDIS_URL:-redis://localhost:6379}"

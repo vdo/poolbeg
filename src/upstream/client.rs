@@ -2,11 +2,13 @@ use anyhow::Result;
 use reqwest::Client;
 use reqwest::header;
 use serde_json::Value;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::debug;
 
 use crate::config::{UpstreamConfig, UpstreamRole};
+use crate::middleware::rate_limit::RateLimiter;
 use crate::rpc::types::{JsonRpcRequest, JsonRpcResponse};
 
 const USER_AGENT: &str = concat!("meddler/", env!("CARGO_PKG_VERSION"));
@@ -21,6 +23,7 @@ pub struct UpstreamClient {
     client: Client,
     healthy: AtomicBool,
     block_height: AtomicU64,
+    rate_limiter: Mutex<RateLimiter>,
 }
 
 impl UpstreamClient {
@@ -44,6 +47,7 @@ impl UpstreamClient {
             client,
             healthy: AtomicBool::new(true),
             block_height: AtomicU64::new(0),
+            rate_limiter: Mutex::new(RateLimiter::new(config.max_rps)),
         })
     }
 
@@ -61,6 +65,12 @@ impl UpstreamClient {
 
     pub fn set_block_height(&self, height: u64) {
         self.block_height.store(height, Ordering::Relaxed);
+    }
+
+    /// Try to acquire a rate limit token. Returns true if allowed.
+    pub fn try_acquire_rate_limit(&self) -> bool {
+        let mut rl = self.rate_limiter.lock().unwrap();
+        rl.try_acquire()
     }
 
     /// Send a JSON-RPC request to this upstream and return the response.

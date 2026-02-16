@@ -84,6 +84,7 @@ impl ChainManager {
 
     /// Forward a JSON-RPC request to the best available upstream.
     /// Uses role-based tier selection with round-robin within tiers.
+    /// Checks per-upstream rate limits and skips rate-limited upstreams.
     pub async fn forward_request(&self, req: &JsonRpcRequest) -> Result<JsonRpcResponse> {
         // Try tiers in order: primary, secondary, fallback
         for role in &[
@@ -101,31 +102,45 @@ impl ChainManager {
                 continue;
             }
 
-            // Round-robin within the tier
-            let idx = self.round_robin.fetch_add(1, Ordering::Relaxed) % tier_upstreams.len();
-            let upstream = &tier_upstreams[idx];
+            let start_idx = self.round_robin.fetch_add(1, Ordering::Relaxed);
 
-            match upstream.send_request(req).await {
-                Ok(resp) => {
-                    metrics::counter!("meddler_requests_total",
+            // Iterate all upstreams in the tier (starting from round-robin offset)
+            for i in 0..tier_upstreams.len() {
+                let idx = (start_idx + i) % tier_upstreams.len();
+                let upstream = &tier_upstreams[idx];
+
+                // Check per-upstream rate limit
+                if !upstream.try_acquire_rate_limit() {
+                    metrics::counter!("meddler_upstream_rate_limited_total",
                         "chain" => self.chain_name.clone(),
-                        "method" => req.method.clone(),
-                        "status" => "ok",
-                        "cache_hit" => "false"
+                        "upstream" => upstream.id.clone()
                     )
                     .increment(1);
-                    return Ok(resp);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        chain = %self.chain_name,
-                        upstream = %upstream.id,
-                        error = %e,
-                        "upstream request failed, trying next"
-                    );
-                    // Mark unhealthy and try next
-                    upstream.set_healthy(false);
                     continue;
+                }
+
+                match upstream.send_request(req).await {
+                    Ok(resp) => {
+                        metrics::counter!("meddler_requests_total",
+                            "chain" => self.chain_name.clone(),
+                            "method" => req.method.clone(),
+                            "status" => "ok",
+                            "cache_hit" => "false"
+                        )
+                        .increment(1);
+                        return Ok(resp);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            chain = %self.chain_name,
+                            upstream = %upstream.id,
+                            error = %e,
+                            "upstream request failed, trying next"
+                        );
+                        // Mark unhealthy and try next
+                        upstream.set_healthy(false);
+                        continue;
+                    }
                 }
             }
         }

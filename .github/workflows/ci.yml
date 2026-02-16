@@ -44,6 +44,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit
+      - run: cargo audit
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest

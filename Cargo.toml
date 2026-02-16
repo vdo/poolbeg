@@ -12,7 +12,7 @@ tokio = { version = "1", features = ["full"] }
 # http server
 axum = { version = "0.8", features = ["ws"] }
 tower = { version = "0.5", features = ["full"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "limit"] }
 
 # http client
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
