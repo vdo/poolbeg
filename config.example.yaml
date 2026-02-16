@@ -1,0 +1,74 @@
+server:
+  address: "0.0.0.0"
+  port: 8080
+  metrics:
+    address: "0.0.0.0"
+    port: 9090
+    path: "/metrics"
+
+cache:
+  redis:
+    url: "${REDIS_URL:-redis://localhost:6379}"
+    pool_size: 16
+    db: 0
+  policies:
+    # Finalized data = cache permanently
+    - methods: ["eth_getBlockByHash", "eth_getTransactionByHash", "eth_getTransactionReceipt"]
+      finality: finalized
+      ttl: "0"
+    # Unfinalized/latest = short TTL
+    - methods: ["eth_getBlockByNumber", "eth_getBalance", "eth_getCode", "eth_getStorageAt"]
+      finality: unfinalized
+      ttl: "2s"
+    # Never cache
+    - methods: ["eth_sendRawTransaction", "eth_estimateGas", "eth_call"]
+      finality: any
+      ttl: "-1"
+    # Default catch-all
+    - methods: ["*"]
+      finality: finalized
+      ttl: "3600s"
+    - methods: ["*"]
+      finality: unfinalized
+      ttl: "3s"
+
+chains:
+  - name: ethereum
+    chain_id: 1
+    expected_block_time: "12s"
+    finality_depth: 64
+    route: /ethereum
+    upstreams:
+      - id: infura-eth
+        role: primary
+        http_url: "https://mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: ankr-eth
+        role: secondary
+        http_url: "https://rpc.ankr.com/eth/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-eth
+        role: fallback
+        http_url: "https://ethereum-rpc.publicnode.com"
+        max_rps: 10
+
+  - name: arbitrum
+    chain_id: 42161
+    expected_block_time: "250ms"
+    finality_depth: 100
+    route: /arbitrum
+    upstreams:
+      - id: infura-arb
+        role: primary
+        http_url: "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://arbitrum-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: ankr-arb
+        role: secondary
+        http_url: "https://rpc.ankr.com/arbitrum/${ANKR_KEY}"
+        max_rps: 30
+      - id: public-arb
+        role: fallback
+        http_url: "https://arbitrum-one-rpc.publicnode.com"
+        max_rps: 10

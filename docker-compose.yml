@@ -1,0 +1,26 @@
+services:
+  meddler:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      # Mount your config — use config.example.yaml for mainnet or config.arbitrum-sepolia.yaml for testnet
+      - ./config.example.yaml:/etc/meddler/config.yaml:ro
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - INFURA_KEY=${INFURA_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3

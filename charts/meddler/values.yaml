@@ -1,0 +1,129 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/your-org/meddler
+  pullPolicy: IfNotPresent
+  tag: ""  # Defaults to Chart appVersion
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 256Mi
+
+# Redis sidecar configuration
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: "1"
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  args:
+    - redis-server
+    - --maxmemory
+    - 256mb
+    - --maxmemory-policy
+    - allkeys-lru
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: meddler.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Meddler configuration (rendered as config.yaml ConfigMap)
+config:
+  server:
+    address: "0.0.0.0"
+    port: 8080
+    metrics:
+      address: "0.0.0.0"
+      port: 9090
+      path: "/metrics"
+
+  cache:
+    redis:
+      url: "redis://localhost:6379"
+      pool_size: 16
+      db: 0
+    policies:
+      - methods: ["eth_getBlockByHash", "eth_getTransactionByHash", "eth_getTransactionReceipt"]
+        finality: finalized
+        ttl: "0"
+      - methods: ["eth_getBlockByNumber", "eth_getBalance", "eth_getCode"]
+        finality: unfinalized
+        ttl: "2s"
+      - methods: ["eth_sendRawTransaction", "eth_estimateGas", "eth_call"]
+        finality: any
+        ttl: "-1"
+      - methods: ["*"]
+        finality: finalized
+        ttl: "3600s"
+      - methods: ["*"]
+        finality: unfinalized
+        ttl: "3s"
+
+  chains:
+    - name: arbitrum
+      chain_id: 42161
+      expected_block_time: "250ms"
+      finality_depth: 100
+      route: /arbitrum
+      upstreams:
+        - id: infura-arb
+          role: primary
+          http_url: "https://arbitrum-mainnet.infura.io/v3/YOUR_KEY"
+          max_rps: 50
+
+# Secrets for upstream API keys (referenced by env vars in config)
+# Option 1: let the chart create a Secret with these values
+secrets: {}
+  # INFURA_KEY: "your-key"
+
+# Option 2: reference an existing Secret (e.g. from External Secrets Operator, Sealed Secrets)
+# When set, the chart will NOT create its own Secret and will use this one instead
+existingSecret: ""
+  # e.g. existingSecret: "my-rpc-keys"
+
+# Prometheus ServiceMonitor
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  labels: {}
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
