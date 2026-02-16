@@ -7,8 +7,8 @@
 
 <br/><br/>
 
-[![CI](https://github.com/your-org/meddler/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/meddler/actions/workflows/ci.yml)
-[![Release](https://github.com/your-org/meddler/actions/workflows/release.yml/badge.svg)](https://github.com/your-org/meddler/actions/workflows/release.yml)
+[![CI](https://github.com/vdo/meddler/actions/workflows/ci.yml/badge.svg)](https://github.com/vdo/meddler/actions/workflows/ci.yml)
+[![Release](https://github.com/vdo/meddler/actions/workflows/release.yml/badge.svg)](https://github.com/vdo/meddler/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
@@ -26,7 +26,7 @@ Meddler sits between your app and upstream EVM RPC nodes (Infura, Ankr, self-hos
 - **Cache-driven subscriptions** — `eth_subscribe(newHeads)`, `logs` served from cache, not upstream WS
 - **Role-based upstream failover** — primary / secondary / fallback tiers with round-robin
 - **Block tracker** — polls chain head, caches blocks + logs proactively, detects reorgs
-- **Multi-chain** — serve Arbitrum, Ethereum, any EVM chain from one instance
+- **Multi-chain** — serve Ethereum, Arbitrum, any EVM chain from one instance
 - **Prometheus metrics** — requests, cache hits, upstream health, WS connections
 - **Helm chart** — Redis sidecar, external secrets support, HPA, ServiceMonitor
 
@@ -34,7 +34,7 @@ Meddler sits between your app and upstream EVM RPC nodes (Infura, Ankr, self-hos
 
 ```bash
 # Clone and configure
-git clone https://github.com/your-org/meddler.git
+git clone https://github.com/vdo/meddler.git
 cd meddler
 cp .env.example .env
 # Edit .env with your Infura key (or other provider)
@@ -44,8 +44,8 @@ docker compose up --build
 ```
 
 Meddler is now listening:
-- **HTTP** — `http://localhost:8080/arbitrum`
-- **WebSocket** — `ws://localhost:8080/arbitrum`
+- **HTTP** — `http://localhost:8080/ethereum`
+- **WebSocket** — `ws://localhost:8080/ethereum`
 - **Metrics** — `http://localhost:9090/metrics`
 - **Health** — `http://localhost:8080/health`
 
@@ -53,11 +53,11 @@ Meddler is now listening:
 
 ```bash
 # HTTP JSON-RPC
-curl -s http://localhost:8080/arbitrum \
+curl -s http://localhost:8080/ethereum \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 
 # WebSocket (install wscat: npm i -g wscat)
-wscat -c ws://localhost:8080/arbitrum
+wscat -c ws://localhost:8080/ethereum
 > {"jsonrpc":"2.0","method":"eth_subscribe","params":["newHeads"],"id":1}
 > {"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":2}
 ```
@@ -68,11 +68,11 @@ wscat -c ws://localhost:8080/arbitrum
 import { ethers } from "ethers";
 
 // HTTP
-const http = new ethers.JsonRpcProvider("http://localhost:8080/arbitrum");
+const http = new ethers.JsonRpcProvider("http://localhost:8080/ethereum");
 const block = await http.getBlockNumber();
 
 // WebSocket with subscriptions
-const ws = new ethers.WebSocketProvider("ws://localhost:8080/arbitrum");
+const ws = new ethers.WebSocketProvider("ws://localhost:8080/ethereum");
 ws.on("block", (blockNumber) => console.log("new block:", blockNumber));
 ```
 
@@ -120,7 +120,13 @@ chains:
         role: fallback
         http_url: "https://ethereum-rpc.publicnode.com"
         max_rps: 10
+```
 
+### Adding more chains
+
+Meddler supports multiple chains from a single instance. Just add another entry under `chains:`:
+
+```yaml
   - name: arbitrum
     chain_id: 42161
     expected_block_time: "250ms"
@@ -165,31 +171,31 @@ chains:
 ```
     Clients (ethers.js, viem, web3.py, etc.)
          HTTP POST        WS eth_subscribe
-              │                  │
-              ▼                  ▼
-        ┌──────────────────────────┐
-        │   axum (single port)     │
-        │   HTTP handler │ WS      │
-        └────────────┬─────────────┘
-                     │
-        ┌────────────▼─────────────┐
-        │    Cache Layer (Redis)   │
-        │  ┌─────────────────┐     │
-        │  │  Block Tracker  │     │  polls upstreams, caches
-        │  │  (per chain)    │─────│  blocks + logs, emits events
-        │  └────────┬────────┘     │
-        │  ┌────────▼────────┐     │
-        │  │  Subscription   │     │  reads from cache,
-        │  │  Manager        │─────│  fans out to WS clients
-        │  └─────────────────┘     │
-        └────────────┬─────────────┘
-                     │
-        ┌────────────▼─────────────┐
-        │   Upstream Manager       │
-        │   primary → secondary    │
-        │         → fallback       │
-        └──┬─────┬─────┬─────┬────┘
-           │     │     │     │
+              |                  |
+              v                  v
+        +----------------------------+
+        |   axum (single port)       |
+        |   HTTP handler | WS       |
+        +------------+---------------+
+                     |
+        +------------v---------------+
+        |    Cache Layer (Redis)     |
+        |  +-----------------+       |
+        |  |  Block Tracker  |       |  polls upstreams, caches
+        |  |  (per chain)    |-------+  blocks + logs, emits events
+        |  +--------+--------+       |
+        |  +--------v--------+       |
+        |  |  Subscription   |       |  reads from cache,
+        |  |  Manager        |-------+  fans out to WS clients
+        |  +-----------------+       |
+        +------------+---------------+
+                     |
+        +------------v---------------+
+        |   Upstream Manager         |
+        |   primary -> secondary     |
+        |         -> fallback        |
+        +--+-----+-----+-----+------+
+           |     |     |     |
          node  node  infura  ankr
 ```
 

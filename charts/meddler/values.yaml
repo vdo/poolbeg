@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/your-org/meddler
+  repository: ghcr.io/vdo/meddler
   pullPolicy: IfNotPresent
   tag: ""  # Defaults to Chart appVersion
 
@@ -94,16 +94,20 @@ config:
         ttl: "3s"
 
   chains:
-    - name: arbitrum
-      chain_id: 42161
-      expected_block_time: "250ms"
-      finality_depth: 100
-      route: /arbitrum
+    - name: ethereum
+      chain_id: 1
+      expected_block_time: "12s"
+      finality_depth: 64
+      route: /ethereum
       upstreams:
-        - id: infura-arb
+        - id: infura-eth
           role: primary
-          http_url: "https://arbitrum-mainnet.infura.io/v3/YOUR_KEY"
+          http_url: "https://mainnet.infura.io/v3/YOUR_KEY"
           max_rps: 50
+        - id: public-eth
+          role: fallback
+          http_url: "https://ethereum-rpc.publicnode.com"
+          max_rps: 10
 
 # Secrets for upstream API keys (referenced by env vars in config)
 # Option 1: let the chart create a Secret with these values
