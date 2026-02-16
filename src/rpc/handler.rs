@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{body::Bytes, extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{Json, body::Bytes, extract::State, http::StatusCode, response::IntoResponse};
 use tracing::{debug, warn};
 
 use crate::cache::CacheLayer;

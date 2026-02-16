@@ -38,18 +38,17 @@ async fn check_upstream(upstream: &UpstreamClient) -> bool {
         .await
     {
         Ok(resp) => {
-            if let Some(result) = &resp.result {
-                if let Some(hex) = result.as_str() {
-                    if let Ok(height) = u64::from_str_radix(hex.trim_start_matches("0x"), 16) {
-                        upstream.set_block_height(height);
-                        metrics::gauge!("meddler_upstream_block_height",
-                            "upstream_id" => upstream.id.clone()
-                        )
-                        .set(height as f64);
-                        debug!(upstream = %upstream.id, height, "health check ok");
-                        return true;
-                    }
-                }
+            if let Some(result) = &resp.result
+                && let Some(hex) = result.as_str()
+                && let Ok(height) = u64::from_str_radix(hex.trim_start_matches("0x"), 16)
+            {
+                upstream.set_block_height(height);
+                metrics::gauge!("meddler_upstream_block_height",
+                    "upstream_id" => upstream.id.clone()
+                )
+                .set(height as f64);
+                debug!(upstream = %upstream.id, height, "health check ok");
+                return true;
             }
             warn!(upstream = %upstream.id, "health check: unexpected response format");
             false

@@ -1,4 +1,4 @@
-use crate::rpc::types::{normalize_for_cache, JsonRpcRequest};
+use crate::rpc::types::{JsonRpcRequest, normalize_for_cache};
 use blake3::Hasher;
 
 /// Generate a Redis cache key for a JSON-RPC request.

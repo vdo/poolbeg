@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::Value;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc};
 use tracing::{debug, info, warn};
 
 use crate::cache::CacheLayer;
@@ -38,14 +38,12 @@ impl LogFilter {
         let address = v.get("address").and_then(|a| {
             if let Some(s) = a.as_str() {
                 Some(vec![s.to_lowercase()])
-            } else if let Some(arr) = a.as_array() {
-                Some(
+            } else {
+                a.as_array().map(|arr| {
                     arr.iter()
                         .filter_map(|x| x.as_str().map(|s| s.to_lowercase()))
-                        .collect(),
-                )
-            } else {
-                None
+                        .collect()
+                })
             }
         });
 
@@ -57,14 +55,12 @@ impl LogFilter {
                             None
                         } else if let Some(s) = topic.as_str() {
                             Some(vec![s.to_lowercase()])
-                        } else if let Some(arr) = topic.as_array() {
-                            Some(
+                        } else {
+                            topic.as_array().map(|arr| {
                                 arr.iter()
                                     .filter_map(|x| x.as_str().map(|s| s.to_lowercase()))
-                                    .collect(),
-                            )
-                        } else {
-                            None
+                                    .collect()
+                            })
                         }
                     })
                     .collect()
@@ -245,10 +241,9 @@ impl SubscriptionManager {
             }
             BlockEvent::Reorg { chain_id, .. } => {
                 if chain_id != self.chain_id {
-                    return;
+                    // Reorg handling: subscriptions will naturally get new blocks
+                    // as the tracker re-fetches the new chain head
                 }
-                // Reorg handling: subscriptions will naturally get new blocks
-                // as the tracker re-fetches the new chain head
             }
         }
     }

@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 

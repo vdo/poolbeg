@@ -1,6 +1,6 @@
 use anyhow::Result;
-use reqwest::header;
 use reqwest::Client;
+use reqwest::header;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;

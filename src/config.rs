@@ -448,10 +448,12 @@ chains: []
 
         let result = Config::load(tmpfile.path());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("at least one chain"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("at least one chain")
+        );
     }
 
     #[test]
@@ -512,9 +514,11 @@ chains:
 
         let result = Config::load(tmpfile.path());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("route must start with '/'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("route must start with '/'")
+        );
     }
 }

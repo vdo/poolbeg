@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use axum::{
+    Router,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Router,
 };
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
