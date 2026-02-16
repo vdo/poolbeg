@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e94560"/>
+      <stop offset="100%" stop-color="#f27121"/>
+    </linearGradient>
+    <linearGradient id="block" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f3460"/>
+      <stop offset="100%" stop-color="#533483"/>
+    </linearGradient>
+    <linearGradient id="cache" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e94560"/>
+      <stop offset="100%" stop-color="#c23616"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="480" height="160" rx="16" fill="url(#bg)"/>
+
+  <!-- Icon: stylized blocks flowing through a diamond (the "meddler") -->
+  <g transform="translate(40, 30)">
+    <!-- Incoming block (left) -->
+    <rect x="0" y="35" width="22" height="22" rx="4" fill="url(#block)" opacity="0.5"/>
+    <rect x="14" y="25" width="22" height="22" rx="4" fill="url(#block)" opacity="0.7"/>
+
+    <!-- Flow arrow left -->
+    <line x1="40" y1="42" x2="52" y2="42" stroke="#e94560" stroke-width="2" stroke-dasharray="4,3" opacity="0.6"/>
+
+    <!-- Central diamond — the meddler/proxy -->
+    <g filter="glow">
+      <polygon points="80,16 108,44 80,72 52,44" fill="none" stroke="url(#accent)" stroke-width="2.5"/>
+      <polygon points="80,24 102,44 80,64 58,44" fill="url(#cache)" opacity="0.15"/>
+    </g>
+    <!-- Cache symbol (circular arrows inside diamond) -->
+    <g transform="translate(80,44)" stroke="url(#accent)" stroke-width="1.8" fill="none" opacity="0.9">
+      <path d="M-8,-2 A 8 8 0 0 1 6,-6" stroke-linecap="round"/>
+      <path d="M5,-6 L8,-4 L5,-2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8,2 A 8 8 0 0 1 -6,6" stroke-linecap="round"/>
+      <path d="M-5,6 L-8,4 L-5,2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <!-- Flow arrow right -->
+    <line x1="108" y1="42" x2="120" y2="42" stroke="#e94560" stroke-width="2" stroke-dasharray="4,3" opacity="0.6"/>
+
+    <!-- Outgoing blocks (right, cached) -->
+    <rect x="122" y="25" width="22" height="22" rx="4" fill="url(#block)" opacity="0.7"/>
+    <rect x="122" y="25" width="22" height="22" rx="4" fill="url(#accent)" opacity="0.12"/>
+    <rect x="136" y="35" width="22" height="22" rx="4" fill="url(#block)" opacity="0.5"/>
+    <rect x="136" y="35" width="22" height="22" rx="4" fill="url(#accent)" opacity="0.08"/>
+
+    <!-- Small Redis dot -->
+    <circle cx="80" cy="82" r="3.5" fill="#e94560" opacity="0.7"/>
+    <line x1="80" y1="72" x2="80" y2="78" stroke="#e94560" stroke-width="1" opacity="0.4"/>
+    <text x="80" y="96" text-anchor="middle" fill="#e94560" font-family="monospace" font-size="8" opacity="0.5">redis</text>
+  </g>
+
+  <!-- Text: MEDDLER -->
+  <g transform="translate(210, 55)">
+    <text font-family="'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace" font-size="42" font-weight="700" fill="#e8e8e8" letter-spacing="4">
+      MEDDLER
+    </text>
+  </g>
+
+  <!-- Subtitle -->
+  <text x="210" y="90" font-family="'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace" font-size="12" fill="#888" letter-spacing="1.5">
+    Web3 JSON-RPC caching proxy
+  </text>
+
+  <!-- Decorative bottom line -->
+  <rect x="210" y="100" width="240" height="2" rx="1" fill="url(#accent)" opacity="0.4"/>
+
+  <!-- Tech tags -->
+  <g font-family="'SF Mono', 'Fira Code', monospace" font-size="10" fill="#666">
+    <text x="210" y="120">Rust</text>
+    <text x="248" y="120" fill="#555">|</text>
+    <text x="260" y="120">Redis</text>
+    <text x="306" y="120" fill="#555">|</text>
+    <text x="318" y="120">HTTP+WS</text>
+    <text x="388" y="120" fill="#555">|</text>
+    <text x="400" y="120">EVM</text>
+  </g>
+</svg>

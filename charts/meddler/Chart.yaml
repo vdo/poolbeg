@@ -1,0 +1,6 @@
+apiVersion: v2
+name: meddler
+description: Web3 JSON-RPC caching proxy with Redis backend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

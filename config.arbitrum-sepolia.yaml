@@ -1,0 +1,50 @@
+server:
+  address: "0.0.0.0"
+  port: 8080
+  metrics:
+    address: "0.0.0.0"
+    port: 9090
+    path: "/metrics"
+
+cache:
+  redis:
+    url: "${REDIS_URL:-redis://localhost:6379}"
+    pool_size: 16
+    db: 0
+  policies:
+    # Finalized data = cache permanently
+    - methods: ["eth_getBlockByHash", "eth_getTransactionByHash", "eth_getTransactionReceipt"]
+      finality: finalized
+      ttl: "0"
+    # Unfinalized/latest = short TTL
+    - methods: ["eth_getBlockByNumber", "eth_getBalance", "eth_getCode", "eth_getStorageAt"]
+      finality: unfinalized
+      ttl: "2s"
+    # Never cache
+    - methods: ["eth_sendRawTransaction", "eth_estimateGas", "eth_call"]
+      finality: any
+      ttl: "-1"
+    # Default catch-all
+    - methods: ["*"]
+      finality: finalized
+      ttl: "3600s"
+    - methods: ["*"]
+      finality: unfinalized
+      ttl: "3s"
+
+chains:
+  - name: arbitrum-sepolia
+    chain_id: 421614
+    expected_block_time: "250ms"
+    finality_depth: 100
+    route: /arbitrum
+    upstreams:
+      - id: infura-arb
+        role: primary
+        http_url: "https://arbitrum-sepolia.infura.io/v3/${INFURA_KEY}"
+        ws_url: "wss://arbitrum-sepolia.infura.io/ws/v3/${INFURA_KEY}"
+        max_rps: 50
+      - id: public-arb
+        role: fallback
+        http_url: "https://arbitrum-sepolia.publicnode.com"
+        max_rps: 10
