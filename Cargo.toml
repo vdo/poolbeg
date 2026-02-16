@@ -1,5 +1,5 @@
 [package]
-name = "meddler"
+name = "poolbeg"
 version = "0.2.0"
 edition = "2024"
 description = "High-performance Web3 JSON-RPC caching proxy with Redis backend"

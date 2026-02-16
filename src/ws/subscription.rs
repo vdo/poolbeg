@@ -165,7 +165,7 @@ impl SubscriptionManager {
             SubscriptionType::Syncing => "syncing",
         };
 
-        metrics::gauge!("meddler_ws_active_subscriptions",
+        metrics::gauge!("poolbeg_ws_active_subscriptions",
             "chain" => self.chain_name.clone(),
             "subscription_type" => sub_type_str.to_string()
         )
@@ -185,7 +185,7 @@ impl SubscriptionManager {
                 SubscriptionType::NewPendingTransactions => "newPendingTransactions",
                 SubscriptionType::Syncing => "syncing",
             };
-            metrics::gauge!("meddler_ws_active_subscriptions",
+            metrics::gauge!("poolbeg_ws_active_subscriptions",
                 "chain" => self.chain_name.clone(),
                 "subscription_type" => sub_type_str.to_string()
             )

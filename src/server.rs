@@ -129,7 +129,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     // Start main server
     let addr = format!("{}:{}", config.server.address, config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    info!(addr = %addr, "meddler listening");
+    info!(addr = %addr, "poolbeg listening");
     axum::serve(listener, app).await?;
 
     Ok(())

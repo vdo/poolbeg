@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "meddler.fullname" . }}
+  name: {{ include "poolbeg.fullname" . }}
   labels:
-    {{- include "meddler.labels" . | nindent 4 }}
+    {{- include "poolbeg.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "meddler.selectorLabels" . | nindent 6 }}
+      {{- include "poolbeg.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -17,19 +17,19 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "meddler.selectorLabels" . | nindent 8 }}
+        {{- include "poolbeg.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "meddler.serviceAccountName" . }}
+      serviceAccountName: {{ include "poolbeg.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: meddler
+        - name: poolbeg
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.securityContext }}
@@ -38,7 +38,7 @@ spec:
           {{- end }}
           args:
             - --config
-            - /etc/meddler/config.yaml
+            - /etc/poolbeg/config.yaml
           ports:
             - name: http
               containerPort: {{ .Values.config.server.port }}
@@ -48,11 +48,11 @@ spec:
               protocol: TCP
           envFrom:
             - secretRef:
-                name: {{ .Values.existingSecret | default (printf "%s-secrets" (include "meddler.fullname" .)) }}
+                name: {{ .Values.existingSecret | default (printf "%s-secrets" (include "poolbeg.fullname" .)) }}
                 optional: true
           volumeMounts:
             - name: config
-              mountPath: /etc/meddler
+              mountPath: /etc/poolbeg
               readOnly: true
           livenessProbe:
             httpGet:
@@ -103,4 +103,4 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "meddler.fullname" . }}-config
+            name: {{ include "poolbeg.fullname" . }}-config

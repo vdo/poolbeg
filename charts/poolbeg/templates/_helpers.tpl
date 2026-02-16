@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "meddler.name" -}}
+{{- define "poolbeg.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "meddler.fullname" -}}
+{{- define "poolbeg.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "meddler.chart" -}}
+{{- define "poolbeg.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels.
 */}}
-{{- define "meddler.labels" -}}
-helm.sh/chart: {{ include "meddler.chart" . }}
-{{ include "meddler.selectorLabels" . }}
+{{- define "poolbeg.labels" -}}
+helm.sh/chart: {{ include "poolbeg.chart" . }}
+{{ include "poolbeg.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
@@ -41,17 +41,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels.
 */}}
-{{- define "meddler.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "meddler.name" . }}
+{{- define "poolbeg.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "poolbeg.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Service account name.
 */}}
-{{- define "meddler.serviceAccountName" -}}
+{{- define "poolbeg.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "meddler.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "poolbeg.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

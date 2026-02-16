@@ -84,7 +84,7 @@ jobs:
         run: cargo test --test integration -- --ignored
         env:
           REDIS_URL: redis://localhost:6379
-          RUST_LOG: meddler=debug
+          RUST_LOG: poolbeg=debug
 
   # ── Build & Publish ──────────────────────────────────────────────
   docker:

@@ -11,7 +11,7 @@ use crate::config::{UpstreamConfig, UpstreamRole};
 use crate::middleware::rate_limit::RateLimiter;
 use crate::rpc::types::{JsonRpcRequest, JsonRpcResponse};
 
-const USER_AGENT: &str = concat!("meddler/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("poolbeg/", env!("CARGO_PKG_VERSION"));
 
 /// Base health check interval before backoff kicks in.
 const BASE_BACKOFF: Duration = Duration::from_secs(10);
@@ -235,7 +235,7 @@ impl UpstreamClient {
         let elapsed = start.elapsed();
         debug!(upstream = %self.id, method = %req.method, elapsed_ms = %elapsed.as_millis(), "upstream response");
 
-        metrics::histogram!("meddler_upstream_request_duration_seconds", "upstream" => self.id.clone())
+        metrics::histogram!("poolbeg_upstream_request_duration_seconds", "upstream" => self.id.clone())
             .record(elapsed.as_secs_f64());
 
         self.update_latency(elapsed);

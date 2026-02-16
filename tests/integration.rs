@@ -1,4 +1,4 @@
-//! Integration tests for meddler.
+//! Integration tests for poolbeg.
 //!
 //! These tests require:
 //!   - A running Redis instance (default: localhost:6379)
@@ -19,8 +19,8 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use meddler::config::*;
-use meddler::server;
+use poolbeg::config::*;
+use poolbeg::server;
 
 // ---------------------------------------------------------------------------
 // Free public RPC endpoints (no API key required)

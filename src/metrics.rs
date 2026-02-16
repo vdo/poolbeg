@@ -22,37 +22,37 @@ pub fn init_metrics(_config: &Config) -> Result<()> {
 
     // Register initial metric descriptions
     metrics::describe_counter!(
-        "meddler_requests_total",
+        "poolbeg_requests_total",
         "Total JSON-RPC requests processed"
     );
-    metrics::describe_counter!("meddler_cache_hits_total", "Total cache hits");
-    metrics::describe_counter!("meddler_cache_misses_total", "Total cache misses");
+    metrics::describe_counter!("poolbeg_cache_hits_total", "Total cache hits");
+    metrics::describe_counter!("poolbeg_cache_misses_total", "Total cache misses");
     metrics::describe_histogram!(
-        "meddler_request_duration_seconds",
+        "poolbeg_request_duration_seconds",
         "Request duration in seconds"
     );
     metrics::describe_histogram!(
-        "meddler_upstream_request_duration_seconds",
+        "poolbeg_upstream_request_duration_seconds",
         "Upstream request duration in seconds"
     );
     metrics::describe_gauge!(
-        "meddler_upstream_healthy",
+        "poolbeg_upstream_healthy",
         "Whether an upstream is healthy (1=yes, 0=no)"
     );
     metrics::describe_gauge!(
-        "meddler_upstream_block_height",
+        "poolbeg_upstream_block_height",
         "Latest block height reported by upstream"
     );
     metrics::describe_gauge!(
-        "meddler_chain_head_block",
+        "poolbeg_chain_head_block",
         "Current chain head block number"
     );
     metrics::describe_gauge!(
-        "meddler_ws_active_connections",
+        "poolbeg_ws_active_connections",
         "Number of active WebSocket connections"
     );
     metrics::describe_gauge!(
-        "meddler_ws_active_subscriptions",
+        "poolbeg_ws_active_subscriptions",
         "Number of active WebSocket subscriptions"
     );
 

@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/vdo/meddler
+  repository: ghcr.io/vdo/poolbeg
   pullPolicy: IfNotPresent
   tag: ""  # Defaults to Chart appVersion
 
@@ -70,13 +70,13 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: meddler.local
+    - host: poolbeg.local
       paths:
         - path: /
           pathType: Prefix
   tls: []
 
-# Meddler configuration (rendered as config.yaml ConfigMap)
+# Poolbeg configuration (rendered as config.yaml ConfigMap)
 config:
   server:
     address: "0.0.0.0"

@@ -38,7 +38,7 @@ pub async fn health_check_loop(
                 "[{chain_name}] health check passed but upstream still has too many HTTP errors, staying disabled"
             );
             upstream.record_success();
-            metrics::gauge!("meddler_upstream_healthy",
+            metrics::gauge!("poolbeg_upstream_healthy",
                 "chain" => chain_name.clone(),
                 "upstream_id" => upstream.id.clone()
             )
@@ -47,7 +47,7 @@ pub async fn health_check_loop(
         }
 
         upstream.set_healthy(healthy);
-        metrics::gauge!("meddler_upstream_healthy",
+        metrics::gauge!("poolbeg_upstream_healthy",
             "chain" => chain_name.clone(),
             "upstream_id" => upstream.id.clone()
         )
@@ -130,10 +130,10 @@ pub async fn upstream_status_loop(
             .ws_subscriptions
             .load(std::sync::atomic::Ordering::Relaxed);
 
-        metrics::gauge!("meddler_upstream_ok", "chain" => chain_name.clone()).set(ok as f64);
-        metrics::gauge!("meddler_upstream_unhealthy", "chain" => chain_name.clone())
+        metrics::gauge!("poolbeg_upstream_ok", "chain" => chain_name.clone()).set(ok as f64);
+        metrics::gauge!("poolbeg_upstream_unhealthy", "chain" => chain_name.clone())
             .set(unhealthy as f64);
-        metrics::gauge!("meddler_upstream_disabled", "chain" => chain_name.clone())
+        metrics::gauge!("poolbeg_upstream_disabled", "chain" => chain_name.clone())
             .set(disabled as f64);
 
         info!(
@@ -160,7 +160,7 @@ async fn check_upstream(upstream: &UpstreamClient, chain_name: &str) -> bool {
                 && let Ok(height) = u64::from_str_radix(hex.trim_start_matches("0x"), 16)
             {
                 upstream.set_block_height(height);
-                metrics::gauge!("meddler_upstream_block_height",
+                metrics::gauge!("poolbeg_upstream_block_height",
                     "upstream_id" => upstream.id.clone()
                 )
                 .set(height as f64);
