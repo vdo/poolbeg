@@ -61,7 +61,7 @@ impl CacheLayer {
             self.redis.sadd(&set_key, &key).await;
         }
 
-        debug!(chain = %chain_name, method = %req.method, ttl_ms = ttl.as_millis(), "cached response");
+        debug!(method = %req.method, ttl_ms = ttl.as_millis(), "[{chain_name}] cached response");
     }
 
     /// Cache a block by number and hash (called by block tracker).
@@ -108,7 +108,7 @@ impl CacheLayer {
     /// Invalidate all head cache entries (on reorg).
     pub async fn invalidate_head_cache(&self, chain_id: u64, chain_name: &str) {
         let set_key = keys::head_cache_set_key(chain_id);
-        debug!(chain = %chain_name, "invalidating head cache");
+        debug!("[{chain_name}] invalidating head cache");
         self.redis.delete_set_and_members(&set_key).await;
     }
 }

@@ -165,6 +165,17 @@ pub struct ChainConfig {
     #[serde(default = "default_finality_depth")]
     pub finality_depth: u64,
     pub route: String,
+    /// When true, automatically fetch public RPC endpoints for this chain_id
+    /// from the eRPC public endpoints registry and add them as fallback upstreams.
+    #[serde(default)]
+    pub auto_public: bool,
+    /// Strategy for selecting among healthy upstreams within a tier.
+    #[serde(default)]
+    pub strategy: UpstreamStrategy,
+    /// How long to wait before retrying a disabled upstream. Default: 24h.
+    #[serde(default = "default_disabled_retry_interval", deserialize_with = "deserialize_duration")]
+    pub disabled_retry_interval: Duration,
+    #[serde(default)]
     pub upstreams: Vec<UpstreamConfig>,
 }
 
@@ -185,6 +196,19 @@ pub enum UpstreamRole {
     Primary,
     Secondary,
     Fallback,
+}
+
+/// Strategy used to select among healthy upstreams within a tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UpstreamStrategy {
+    /// Cycle through upstreams sequentially.
+    #[default]
+    RoundRobin,
+    /// Pick a random healthy upstream each time.
+    Random,
+    /// Pick the upstream with the lowest observed latency.
+    LowestLatency,
 }
 
 fn deserialize_duration<'de, D: serde::Deserializer<'de>>(
@@ -220,6 +244,9 @@ fn default_finality_depth() -> u64 {
 }
 fn default_role() -> UpstreamRole {
     UpstreamRole::Primary
+}
+fn default_disabled_retry_interval() -> Duration {
+    Duration::from_secs(24 * 3600)
 }
 fn default_max_rps() -> u32 {
     100
@@ -287,8 +314,8 @@ impl Config {
         let mut routes = HashMap::new();
         for chain in &self.chains {
             anyhow::ensure!(
-                !chain.upstreams.is_empty(),
-                "chain '{}' must have at least one upstream",
+                !chain.upstreams.is_empty() || chain.auto_public,
+                "chain '{}' must have at least one upstream (or set auto_public: true)",
                 chain.name
             );
             anyhow::ensure!(

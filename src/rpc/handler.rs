@@ -18,7 +18,7 @@ pub async fn handle_rpc(
     let request = match RpcRequest::parse(&body) {
         Ok(req) => req,
         Err(e) => {
-            warn!(chain = %chain_name, error = %e, "invalid JSON-RPC request");
+            warn!(error = %e, "[{chain_name}] invalid JSON-RPC request");
             let resp = JsonRpcResponse::error(serde_json::Value::Null, -32700, "Parse error");
             return (StatusCode::OK, Json(RpcResponse::Single(resp)));
         }
@@ -84,7 +84,7 @@ pub async fn process_single_request(
     let original_id = req.id.clone();
     let method = req.method.clone();
 
-    debug!(chain = %chain_name, method = %method, "processing request");
+    debug!(method = %method, "[{chain_name}] processing request");
 
     // Check blocked methods
     if is_method_blocked(&method, blocked_methods) {
@@ -94,13 +94,13 @@ pub async fn process_single_request(
     // Check cache first (unless uncacheable)
     if !is_uncacheable(&method) {
         if let Some(cached) = cache.get(chain_config.chain_id, &req).await {
-            debug!(chain = %chain_name, method = %method, "cache hit");
+            debug!(method = %method, "[{chain_name}] cache hit");
             metrics::counter!("meddler_cache_hits_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
             let mut resp: JsonRpcResponse = match serde_json::from_str(&cached) {
                 Ok(r) => r,
                 Err(_) => {
                     // Cached data is corrupted, fall through to upstream
-                    debug!(chain = %chain_name, method = %method, "corrupted cache entry, fetching from upstream");
+                    debug!(method = %method, "[{chain_name}] corrupted cache entry, fetching from upstream");
                     return forward_to_upstream(
                         chain_mgr,
                         cache,
@@ -151,7 +151,7 @@ async fn forward_to_upstream(
             resp
         }
         Err(e) => {
-            warn!(chain = %chain_name, method = %method, error = %e, "upstream request failed");
+            warn!(method = %method, error = %e, "[{chain_name}] upstream request failed");
             metrics::counter!("meddler_requests_total",
                 "chain" => chain_name.to_string(),
                 "method" => method,

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
 use serde_json::Value;
@@ -6,7 +7,9 @@ use tokio::sync::broadcast;
 use tracing::{debug, info, warn};
 
 use crate::cache::CacheLayer;
+use crate::config::UpstreamStrategy;
 use crate::upstream::client::UpstreamClient;
+use crate::upstream::strategy;
 
 /// Events emitted by the block tracker.
 #[derive(Debug, Clone)]
@@ -38,7 +41,9 @@ pub struct BlockTracker {
     pub chain_name: String,
     pub poll_interval: Duration,
     pub finality_depth: u64,
+    pub strategy: UpstreamStrategy,
     pub event_tx: broadcast::Sender<BlockEvent>,
+    round_robin: AtomicUsize,
 }
 
 impl BlockTracker {
@@ -47,6 +52,7 @@ impl BlockTracker {
         chain_name: String,
         poll_interval: Duration,
         finality_depth: u64,
+        strategy: UpstreamStrategy,
     ) -> (Self, broadcast::Receiver<BlockEvent>) {
         let (event_tx, event_rx) = broadcast::channel(1024);
         (
@@ -55,7 +61,9 @@ impl BlockTracker {
                 chain_name,
                 poll_interval,
                 finality_depth,
+                strategy,
                 event_tx,
+                round_robin: AtomicUsize::new(0),
             },
             event_rx,
         )
@@ -67,21 +75,27 @@ impl BlockTracker {
         let mut last_block_number: u64 = 0;
         let mut last_block_hash: String = String::new();
 
-        info!(chain = %self.chain_name, interval_ms = %self.poll_interval.as_millis(), "block tracker started");
+        info!(interval_ms = %self.poll_interval.as_millis(), "[{}] block tracker started", self.chain_name);
 
         loop {
             tick.tick().await;
 
-            let upstream = match select_best_upstream(&upstreams) {
+            let upstream = match self.select_best_upstream(&upstreams) {
                 Some(u) => u,
                 None => {
-                    warn!(chain = %self.chain_name, "no healthy upstreams available for block tracking");
+                    warn!("[{}] no healthy upstreams available for block tracking", self.chain_name);
                     continue;
                 }
             };
 
+            // Check rate limit before polling
+            if !upstream.try_acquire_rate_limit() {
+                debug!(upstream = %upstream.id, "[{}] skipping block poll, upstream rate limited", self.chain_name);
+                continue;
+            }
+
             // Fetch latest block
-            match self
+            if let Err(e) = self
                 .fetch_latest_block(
                     &upstream,
                     &cache,
@@ -90,10 +104,7 @@ impl BlockTracker {
                 )
                 .await
             {
-                Ok(()) => {}
-                Err(e) => {
-                    warn!(chain = %self.chain_name, upstream = %upstream.id, error = %e, "failed to fetch latest block");
-                }
+                warn!(upstream = %upstream.id, error = %e, "[{}] failed to fetch latest block", self.chain_name);
             }
         }
     }
@@ -127,13 +138,27 @@ impl BlockTracker {
             return Ok(());
         }
 
-        // Reorg detection: new block has same or lower number but different hash
-        if number <= *last_block_number && hash != *last_block_hash && *last_block_number > 0 {
+        // Block with a lower number than what we've already seen — this is a
+        // lagging upstream, not a reorg.  With multiple upstreams (especially on
+        // fast-block chains like Arbitrum) slight height differences are normal.
+        if number < *last_block_number && *last_block_number > 0 {
+            debug!(
+                last = *last_block_number,
+                received = number,
+                "[{}] ignoring block from lagging upstream", self.chain_name
+            );
+            return Ok(());
+        }
+
+        // Reorg detection: same block number but a different hash means the
+        // chain tip was replaced.  This is the only reliable signal when
+        // polling across multiple upstreams.
+        if number == *last_block_number && hash != *last_block_hash && *last_block_number > 0 {
             warn!(
-                chain = %self.chain_name,
-                from = *last_block_number,
-                to = number,
-                "reorg detected"
+                number,
+                old_hash = %last_block_hash,
+                new_hash = %hash,
+                "[{}] reorg detected (same height, different hash)", self.chain_name
             );
             let _ = self.event_tx.send(BlockEvent::Reorg {
                 chain_id: self.chain_id,
@@ -144,9 +169,12 @@ impl BlockTracker {
             cache
                 .invalidate_head_cache(self.chain_id, &self.chain_name)
                 .await;
+            // Update hash so we don't re-fire on the next tick
+            *last_block_hash = hash;
+            return Ok(());
         }
 
-        debug!(chain = %self.chain_name, number, hash = %hash, "new block");
+        debug!(number, hash = %hash, "[{}] new block", self.chain_name);
 
         // Cache the block by number and hash
         cache.cache_block(self.chain_id, number, &hash, block).await;
@@ -163,7 +191,7 @@ impl BlockTracker {
         match self.fetch_block_logs(upstream, cache, number).await {
             Ok(()) => {}
             Err(e) => {
-                debug!(chain = %self.chain_name, number, error = %e, "failed to fetch block logs");
+                debug!(number, error = %e, "[{}] failed to fetch block logs", self.chain_name);
             }
         }
 
@@ -204,16 +232,23 @@ impl BlockTracker {
 
         Ok(())
     }
-}
 
-/// Select the best healthy upstream (prefer primary, then secondary, then fallback).
-fn select_best_upstream(upstreams: &[Arc<UpstreamClient>]) -> Option<Arc<UpstreamClient>> {
-    // Sort by role priority, pick first healthy
-    let mut sorted: Vec<_> = upstreams
-        .iter()
-        .filter(|u| u.is_healthy())
-        .cloned()
-        .collect();
-    sorted.sort_by_key(|u| u.role);
-    sorted.into_iter().next()
+    /// Select the best healthy upstream using the configured strategy.
+    /// Prefers higher-priority roles (primary > secondary > fallback),
+    /// then applies the strategy within the best available tier.
+    fn select_best_upstream(&self, upstreams: &[Arc<UpstreamClient>]) -> Option<Arc<UpstreamClient>> {
+        use crate::config::UpstreamRole;
+
+        for role in &[UpstreamRole::Primary, UpstreamRole::Secondary, UpstreamRole::Fallback] {
+            let tier: Vec<_> = upstreams
+                .iter()
+                .filter(|u| u.role == *role && u.is_healthy() && !u.is_disabled())
+                .cloned()
+                .collect();
+            if !tier.is_empty() {
+                return strategy::select(&tier, self.strategy, &self.round_robin);
+            }
+        }
+        None
+    }
 }

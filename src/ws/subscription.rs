@@ -171,7 +171,7 @@ impl SubscriptionManager {
         )
         .increment(1.0);
 
-        debug!(chain = %self.chain_name, sub_id = %subscription_id, sub_type = %sub_type_str, "new subscription");
+        debug!(sub_id = %subscription_id, sub_type = %sub_type_str, "[{}] new subscription", self.chain_name);
         subscription_id
     }
 
@@ -190,7 +190,7 @@ impl SubscriptionManager {
                 "subscription_type" => sub_type_str.to_string()
             )
             .decrement(1.0);
-            debug!(chain = %self.chain_name, sub_id = %subscription_id, "unsubscribed");
+            debug!(sub_id = %subscription_id, "[{}] unsubscribed", self.chain_name);
             true
         } else {
             false
@@ -198,14 +198,17 @@ impl SubscriptionManager {
     }
 
     /// Remove all subscriptions for a given sender (on client disconnect).
-    pub async fn remove_client_subscriptions(&self, _tx: &mpsc::UnboundedSender<Value>) {
+    /// Returns the number of subscriptions that were removed.
+    pub async fn remove_client_subscriptions(&self, _tx: &mpsc::UnboundedSender<Value>) -> usize {
         let mut subs = self.subscriptions.write().await;
+        let before = subs.len();
         subs.retain(|_, sub| !sub.tx.is_closed());
+        before - subs.len()
     }
 
     /// Start listening for block events and dispatching to subscribers.
     pub async fn run(&self, mut event_rx: broadcast::Receiver<BlockEvent>) {
-        info!(chain = %self.chain_name, "subscription manager started");
+        info!("[{}] subscription manager started", self.chain_name);
 
         loop {
             match event_rx.recv().await {
@@ -213,10 +216,10 @@ impl SubscriptionManager {
                     self.handle_event(event).await;
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
-                    warn!(chain = %self.chain_name, skipped = n, "subscription manager lagged behind block events");
+                    warn!(skipped = n, "[{}] subscription manager lagged behind block events", self.chain_name);
                 }
                 Err(broadcast::error::RecvError::Closed) => {
-                    info!(chain = %self.chain_name, "block event channel closed, stopping subscription manager");
+                    info!("[{}] block event channel closed, stopping subscription manager", self.chain_name);
                     break;
                 }
             }

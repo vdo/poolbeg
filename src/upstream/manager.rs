@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -7,11 +7,12 @@ use tokio::sync::broadcast;
 use tracing::info;
 
 use crate::cache::CacheLayer;
-use crate::config::{ChainConfig, UpstreamRole};
+use crate::config::{ChainConfig, UpstreamRole, UpstreamStrategy};
 use crate::rpc::types::{JsonRpcRequest, JsonRpcResponse};
 use crate::server::AppState;
 use crate::upstream::client::UpstreamClient;
 use crate::upstream::health;
+use crate::upstream::strategy;
 use crate::upstream::tracker::{BlockEvent, BlockTracker};
 
 /// Manages upstreams and block tracking for a single chain.
@@ -21,15 +22,20 @@ pub struct ChainManager {
     pub upstreams: Arc<Vec<Arc<UpstreamClient>>>,
     pub tracker: Arc<BlockTracker>,
     pub event_rx: broadcast::Receiver<BlockEvent>,
+    strategy: UpstreamStrategy,
     round_robin: AtomicUsize,
     cache: CacheLayer,
+    /// Number of active WebSocket connections on this chain.
+    pub ws_connections: AtomicUsize,
+    /// Number of active WebSocket subscriptions on this chain.
+    pub ws_subscriptions: AtomicUsize,
 }
 
 impl ChainManager {
     pub async fn new(config: &ChainConfig, cache: CacheLayer) -> Result<Self> {
         let mut upstreams = Vec::new();
         for upstream_config in &config.upstreams {
-            let client = UpstreamClient::new(upstream_config)?;
+            let client = UpstreamClient::new(upstream_config, config.disabled_retry_interval, config.name.clone())?;
             upstreams.push(Arc::new(client));
         }
         let upstreams = Arc::new(upstreams);
@@ -39,6 +45,7 @@ impl ChainManager {
             config.name.clone(),
             config.expected_block_time,
             config.finality_depth,
+            config.strategy,
         );
 
         Ok(Self {
@@ -47,13 +54,16 @@ impl ChainManager {
             upstreams,
             tracker: Arc::new(tracker),
             event_rx,
+            strategy: config.strategy,
             round_robin: AtomicUsize::new(0),
             cache,
+            ws_connections: AtomicUsize::new(0),
+            ws_subscriptions: AtomicUsize::new(0),
         })
     }
 
     /// Start health check loops and the block tracker.
-    pub fn start_tracker(&self, _chain_idx: usize, _state: Arc<AppState>) {
+    pub fn start_tracker(&self, chain_idx: usize, state: Arc<AppState>) {
         // Start health checks for each upstream
         let health_interval = Duration::from_secs(10);
         for upstream in self.upstreams.iter() {
@@ -66,6 +76,13 @@ impl ChainManager {
             ));
         }
 
+        // Start upstream status summary loop
+        {
+            let upstreams = self.upstreams.clone();
+            let chain_name = self.chain_name.clone();
+            tokio::spawn(health::upstream_status_loop(upstreams, chain_name, state.clone(), chain_idx));
+        }
+
         // Start block tracker
         let tracker = self.tracker.clone();
         let upstreams = self.upstreams.clone();
@@ -74,7 +91,7 @@ impl ChainManager {
             tracker.run(upstreams, cache).await;
         });
 
-        info!(chain = %self.chain_name, "started health checks and block tracker");
+        info!("[{}] started health checks and block tracker", self.chain_name);
     }
 
     /// Subscribe to block events.
@@ -83,8 +100,8 @@ impl ChainManager {
     }
 
     /// Forward a JSON-RPC request to the best available upstream.
-    /// Uses role-based tier selection with round-robin within tiers.
-    /// Checks per-upstream rate limits and skips rate-limited upstreams.
+    /// Uses role-based tier selection with the configured strategy within tiers.
+    /// Falls back through all upstreams in the tier on failure.
     pub async fn forward_request(&self, req: &JsonRpcRequest) -> Result<JsonRpcResponse> {
         // Try tiers in order: primary, secondary, fallback
         for role in &[
@@ -96,19 +113,28 @@ impl ChainManager {
                 .upstreams
                 .iter()
                 .filter(|u| u.role == *role && u.is_healthy())
+                .cloned()
                 .collect();
 
             if tier_upstreams.is_empty() {
                 continue;
             }
 
-            let start_idx = self.round_robin.fetch_add(1, Ordering::Relaxed);
+            // Pick the preferred upstream via strategy
+            let preferred = strategy::select(&tier_upstreams, self.strategy, &self.round_robin);
 
-            // Iterate all upstreams in the tier (starting from round-robin offset)
-            for i in 0..tier_upstreams.len() {
-                let idx = (start_idx + i) % tier_upstreams.len();
-                let upstream = &tier_upstreams[idx];
+            // Build an ordered attempt list: preferred first, then the rest
+            let mut attempt_order: Vec<Arc<UpstreamClient>> = Vec::with_capacity(tier_upstreams.len());
+            if let Some(ref pref) = preferred {
+                attempt_order.push(pref.clone());
+            }
+            for u in &tier_upstreams {
+                if preferred.as_ref().map_or(true, |p| !Arc::ptr_eq(p, u)) {
+                    attempt_order.push(u.clone());
+                }
+            }
 
+            for upstream in &attempt_order {
                 // Check per-upstream rate limit
                 if !upstream.try_acquire_rate_limit() {
                     metrics::counter!("meddler_upstream_rate_limited_total",
@@ -121,6 +147,7 @@ impl ChainManager {
 
                 match upstream.send_request(req).await {
                     Ok(resp) => {
+                        upstream.record_success();
                         metrics::counter!("meddler_requests_total",
                             "chain" => self.chain_name.clone(),
                             "method" => req.method.clone(),
@@ -131,14 +158,12 @@ impl ChainManager {
                         return Ok(resp);
                     }
                     Err(e) => {
+                        upstream.record_failure();
                         tracing::warn!(
-                            chain = %self.chain_name,
                             upstream = %upstream.id,
                             error = %e,
-                            "upstream request failed, trying next"
+                            "[{}] upstream request failed, trying next", self.chain_name
                         );
-                        // Mark unhealthy and try next
-                        upstream.set_healthy(false);
                         continue;
                     }
                 }

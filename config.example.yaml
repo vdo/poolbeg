@@ -66,16 +66,19 @@ chains:
     expected_block_time: "12s"
     finality_depth: 64
     route: /ethereum
+    # Upstream selection strategy: round_robin (default), random, lowest_latency
+    strategy: round_robin
+    auto_public: true
     upstreams:
-      - id: infura-eth
-        role: primary
-        http_url: "https://mainnet.infura.io/v3/${INFURA_KEY}"
-        ws_url: "wss://mainnet.infura.io/ws/v3/${INFURA_KEY}"
-        max_rps: 50
-      - id: ankr-eth
-        role: secondary
-        http_url: "https://rpc.ankr.com/eth/${ANKR_KEY}"
-        max_rps: 30
+      # - id: infura-eth
+      #   role: primary
+      #   http_url: "https://mainnet.infura.io/v3/${INFURA_KEY}"
+      #   ws_url: "wss://mainnet.infura.io/ws/v3/${INFURA_KEY}"
+      #   max_rps: 50
+      # - id: ankr-eth
+      #   role: secondary
+      #   http_url: "https://rpc.ankr.com/eth/${ANKR_KEY}"
+      #   max_rps: 30
       - id: public-eth
         role: fallback
         http_url: "https://ethereum-rpc.publicnode.com"
@@ -86,17 +89,47 @@ chains:
     expected_block_time: "250ms"
     finality_depth: 100
     route: /arbitrum
+    # Automatically fetch public RPC endpoints for this chain_id from the
+    # eRPC public endpoints registry and add them as fallback upstreams.
+    auto_public: true
+    strategy: lowest_latency
+    # How long to wait before retrying a disabled upstream (default: 24h)
+    disabled_retry_interval: "24h"
+    # upstreams:
+    #   - id: infura-arb
+    #     role: primary
+    #     http_url: "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
+    #     ws_url: "wss://arbitrum-mainnet.infura.io/ws/v3/${INFURA_KEY}"
+    #     max_rps: 50
+    #   - id: ankr-arb
+    #     role: secondary
+    #     http_url: "https://rpc.ankr.com/arbitrum/${ANKR_KEY}"
+    #     max_rps: 30
+  - name: arbitrum-sepolia
+    chain_id: 421614
+    expected_block_time: "250ms"
+    finality_depth: 100
+    route: /arbitrum-sepolia
+    auto_public: true
+    strategy: random
+
+  # Example: a chain with ONLY auto-discovered public endpoints (no manual upstreams)
+  # - name: optimism
+  #   chain_id: 10
+  #   expected_block_time: "2s"
+  #   finality_depth: 64
+  #   route: /optimism
+  #   auto_public: true
+  #   upstreams: []
+  - name: tron-nile
+    chain_id: 728126453
+    expected_block_time: "3s"
+    finality_depth: 10
+    route: /tron-nile
+    strategy: random
     upstreams:
-      - id: infura-arb
+      - id: tron-nile
         role: primary
-        http_url: "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
-        ws_url: "wss://arbitrum-mainnet.infura.io/ws/v3/${INFURA_KEY}"
-        max_rps: 50
-      - id: ankr-arb
-        role: secondary
-        http_url: "https://rpc.ankr.com/arbitrum/${ANKR_KEY}"
-        max_rps: 30
-      - id: public-arb
-        role: fallback
-        http_url: "https://arbitrum-one-rpc.publicnode.com"
+        expected_block_time: "3s"
+        http_url: "https://nile.trongrid.io/jsonrpc"
         max_rps: 10

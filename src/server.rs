@@ -48,7 +48,7 @@ pub async fn setup(config: Config) -> anyhow::Result<Router> {
     let mut chain_managers = Vec::new();
     for chain_config in &config.chains {
         let cm = ChainManager::new(chain_config, cache.clone()).await?;
-        info!(chain = %chain_config.name, "initialized chain manager");
+        info!("[{}] initialized chain manager", chain_config.name);
         chain_managers.push(cm);
     }
 

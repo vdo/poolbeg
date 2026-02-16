@@ -29,11 +29,11 @@ pub async fn handle_ws(
     let max_ws = state.config.server.max_ws_connections;
     let current = state.ws_connection_count.load(Ordering::Relaxed);
     if current >= max_ws {
-        warn!(chain = %chain_name, current, max = max_ws, "WebSocket connection limit reached");
+        warn!(current, max = max_ws, "[{chain_name}] WebSocket connection limit reached");
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
 
-    info!(chain = %chain_name, "new WebSocket connection");
+    info!("[{chain_name}] new WebSocket connection");
 
     ws.on_upgrade(move |socket| handle_ws_connection(socket, state, chain_idx))
         .into_response()
@@ -46,6 +46,7 @@ async fn handle_ws_connection(socket: WebSocket, state: Arc<AppState>, chain_idx
 
     // Track active WebSocket connections
     state.ws_connection_count.fetch_add(1, Ordering::Relaxed);
+    chain_mgr.ws_connections.fetch_add(1, Ordering::Relaxed);
 
     metrics::gauge!("meddler_ws_active_connections", "chain" => chain_name.clone()).increment(1.0);
 
@@ -86,7 +87,7 @@ async fn handle_ws_connection(socket: WebSocket, state: Arc<AppState>, chain_idx
             Ok(Message::Ping(_)) => continue,
             Ok(_) => continue,
             Err(e) => {
-                debug!(chain = %chain_name, error = %e, "WebSocket read error");
+                debug!(error = %e, "[{chain_name}] WebSocket read error");
                 break;
             }
         };
@@ -99,14 +100,16 @@ async fn handle_ws_connection(socket: WebSocket, state: Arc<AppState>, chain_idx
     }
 
     // Cleanup: remove all subscriptions for this client
-    sub_mgr.remove_client_subscriptions(&notify_tx).await;
+    let removed_subs = sub_mgr.remove_client_subscriptions(&notify_tx).await;
+    chain_mgr.ws_subscriptions.fetch_sub(removed_subs, Ordering::Relaxed);
     dispatcher_handle.abort();
     notify_forward.abort();
 
     state.ws_connection_count.fetch_sub(1, Ordering::Relaxed);
+    chain_mgr.ws_connections.fetch_sub(1, Ordering::Relaxed);
 
     metrics::gauge!("meddler_ws_active_connections", "chain" => chain_name.clone()).decrement(1.0);
-    info!(chain = %chain_name, "WebSocket connection closed");
+    info!("[{chain_name}] WebSocket connection closed");
 }
 
 async fn handle_ws_message(
@@ -210,6 +213,8 @@ async fn handle_single_ws_request(
                 .subscribe(subscription_type, log_filter, notify_tx.clone())
                 .await;
 
+            state.chain_managers[chain_idx].ws_subscriptions.fetch_add(1, Ordering::Relaxed);
+
             Some(serde_json::json!({
                 "jsonrpc": "2.0",
                 "result": sub_id,
@@ -225,6 +230,10 @@ async fn handle_single_ws_request(
                 .unwrap_or("");
 
             let success = sub_mgr.unsubscribe(sub_id).await;
+
+            if success {
+                state.chain_managers[chain_idx].ws_subscriptions.fetch_sub(1, Ordering::Relaxed);
+            }
 
             Some(serde_json::json!({
                 "jsonrpc": "2.0",

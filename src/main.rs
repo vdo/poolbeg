@@ -45,8 +45,11 @@ async fn main() -> anyhow::Result<()> {
     info!("meddler v{}", env!("CARGO_PKG_VERSION"));
 
     // Load config
-    let config = config::Config::load(&cli.config)?;
+    let mut config = config::Config::load(&cli.config)?;
     info!(chains = config.chains.len(), "configuration loaded");
+
+    // Resolve auto_public chains by fetching public RPC endpoints
+    meddler::upstream::public_endpoints::resolve_auto_public(&mut config.chains).await?;
 
     for chain in &config.chains {
         info!(
