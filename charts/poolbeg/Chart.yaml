@@ -2,5 +2,5 @@ apiVersion: v2
 name: poolbeg
 description: Web3 JSON-RPC caching proxy with Redis backend
 type: application
-version: 0.2.3
-appVersion: "0.2.3"
+version: 0.3.0
+appVersion: "0.3.0"
