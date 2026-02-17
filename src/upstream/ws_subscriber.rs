@@ -336,7 +336,7 @@ mod tests {
 
     fn text_msg(
         json: &serde_json::Value,
-    ) -> Result<Message, tokio_tungstenite::tungstenite::Error> {
+    ) -> Result<Message, Box<tokio_tungstenite::tungstenite::Error>> {
         Ok(Message::Text(serde_json::to_string(json).unwrap().into()))
     }
 
