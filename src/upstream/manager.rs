@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -14,6 +14,7 @@ use crate::upstream::client::UpstreamClient;
 use crate::upstream::health;
 use crate::upstream::strategy;
 use crate::upstream::tracker::{BlockEvent, BlockTracker};
+use crate::upstream::ws_subscriber::WsSubscriber;
 
 /// Manages upstreams and block tracking for a single chain.
 pub struct ChainManager {
@@ -26,6 +27,8 @@ pub struct ChainManager {
     round_robin: AtomicUsize,
     cache: CacheLayer,
     debug_upstream: bool,
+    /// When true, a WsSubscriber is actively forwarding real newHeads.
+    ws_connected: Arc<AtomicBool>,
     /// Number of active WebSocket connections on this chain.
     pub ws_connections: AtomicUsize,
     /// Number of active WebSocket subscriptions on this chain.
@@ -49,12 +52,15 @@ impl ChainManager {
         }
         let upstreams = Arc::new(upstreams);
 
+        let ws_connected = Arc::new(AtomicBool::new(false));
+
         let (tracker, event_rx) = BlockTracker::new(
             config.chain_id,
             config.name.clone(),
             config.expected_block_time,
             config.finality_depth,
             config.strategy,
+            ws_connected.clone(),
         );
 
         Ok(Self {
@@ -67,6 +73,7 @@ impl ChainManager {
             round_robin: AtomicUsize::new(0),
             cache,
             debug_upstream,
+            ws_connected,
             ws_connections: AtomicUsize::new(0),
             ws_subscriptions: AtomicUsize::new(0),
         })
@@ -105,6 +112,25 @@ impl ChainManager {
         tokio::spawn(async move {
             tracker.run(upstreams, cache).await;
         });
+
+        // Start upstream WS subscriber if any upstream has a ws_url
+        let has_ws = self.upstreams.iter().any(|u| u.ws_url.is_some());
+        if has_ws {
+            let ws_subscriber = WsSubscriber::new(
+                self.chain_id,
+                self.chain_name.clone(),
+                self.tracker.event_tx.clone(),
+                self.ws_connected.clone(),
+                self.upstreams.clone(),
+            );
+            tokio::spawn(async move {
+                ws_subscriber.run().await;
+            });
+            info!(
+                "[{}] started upstream WebSocket subscriber",
+                self.chain_name
+            );
+        }
 
         info!(
             "[{}] started health checks and block tracker",

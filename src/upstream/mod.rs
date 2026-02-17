@@ -4,3 +4,4 @@ pub mod manager;
 pub mod public_endpoints;
 pub mod strategy;
 pub mod tracker;
+pub mod ws_subscriber;

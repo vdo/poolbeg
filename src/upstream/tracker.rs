@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -44,6 +44,9 @@ pub struct BlockTracker {
     pub strategy: UpstreamStrategy,
     pub event_tx: broadcast::Sender<BlockEvent>,
     round_robin: AtomicUsize,
+    /// When true, a WsSubscriber is actively forwarding real newHeads,
+    /// so BlockTracker should NOT emit NewBlock events (only cache + logs).
+    ws_connected: Arc<AtomicBool>,
 }
 
 impl BlockTracker {
@@ -53,6 +56,7 @@ impl BlockTracker {
         poll_interval: Duration,
         finality_depth: u64,
         strategy: UpstreamStrategy,
+        ws_connected: Arc<AtomicBool>,
     ) -> (Self, broadcast::Receiver<BlockEvent>) {
         let (event_tx, event_rx) = broadcast::channel(1024);
         (
@@ -64,6 +68,7 @@ impl BlockTracker {
                 strategy,
                 event_tx,
                 round_robin: AtomicUsize::new(0),
+                ws_connected,
             },
             event_rx,
         )
@@ -183,13 +188,16 @@ impl BlockTracker {
         // Cache the block by number and hash
         cache.cache_block(self.chain_id, number, &hash, block).await;
 
-        // Emit NewBlock event
-        let _ = self.event_tx.send(BlockEvent::NewBlock {
-            chain_id: self.chain_id,
-            number,
-            hash: hash.clone(),
-            header: block.clone(),
-        });
+        // Emit NewBlock event only if no upstream WS subscription is active.
+        // When WS is connected, WsSubscriber forwards real newHeads headers.
+        if !self.ws_connected.load(Ordering::Relaxed) {
+            let _ = self.event_tx.send(BlockEvent::NewBlock {
+                chain_id: self.chain_id,
+                number,
+                hash: hash.clone(),
+                header: block.clone(),
+            });
+        }
 
         // Fetch and cache logs for this block
         match self.fetch_block_logs(upstream, cache, number).await {
