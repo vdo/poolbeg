@@ -14,6 +14,7 @@ pub async fn handle_rpc(
 ) -> impl IntoResponse {
     let chain_mgr = &state.chain_managers[chain_idx];
     let chain_name = &state.config.chains[chain_idx].name;
+    let debug_client = state.config.server.debug_client;
 
     let request = match RpcRequest::parse(&body) {
         Ok(req) => req,
@@ -26,6 +27,15 @@ pub async fn handle_rpc(
 
     let response = match request {
         RpcRequest::Single(req) => {
+            let method = req.method.clone();
+            if debug_client {
+                debug!(
+                    method = %req.method,
+                    id = %req.id,
+                    params = %truncate_json(&req.params, 512),
+                    "[{chain_name}] \u{2190} client request"
+                );
+            }
             let resp = process_single_request(
                 chain_mgr,
                 &state.cache,
@@ -35,6 +45,9 @@ pub async fn handle_rpc(
                 req,
             )
             .await;
+            if debug_client {
+                log_client_response(chain_name, &method, &resp);
+            }
             RpcResponse::Single(resp)
         }
         RpcRequest::Batch(reqs) => {
@@ -53,8 +66,21 @@ pub async fn handle_rpc(
                 return (StatusCode::OK, Json(RpcResponse::Single(resp)));
             }
 
+            if debug_client {
+                debug!("[{chain_name}] \u{2190} client batch of {} requests", reqs.len());
+            }
+
             let mut responses = Vec::with_capacity(reqs.len());
             for req in reqs {
+                let method = req.method.clone();
+                if debug_client {
+                    debug!(
+                        method = %req.method,
+                        id = %req.id,
+                        params = %truncate_json(&req.params, 512),
+                        "[{chain_name}] \u{2190} client request (batch)"
+                    );
+                }
                 let resp = process_single_request(
                     chain_mgr,
                     &state.cache,
@@ -64,6 +90,9 @@ pub async fn handle_rpc(
                     req,
                 )
                 .await;
+                if debug_client {
+                    log_client_response(chain_name, &method, &resp);
+                }
                 responses.push(resp);
             }
             RpcResponse::Batch(responses)
@@ -71,6 +100,30 @@ pub async fn handle_rpc(
     };
 
     (StatusCode::OK, Json(response))
+}
+
+fn log_client_response(chain_name: &str, method: &str, resp: &JsonRpcResponse) {
+    if let Some(ref err) = resp.error {
+        debug!(
+            method = %method,
+            id = %resp.id,
+            error_code = err.code,
+            error_msg = %err.message,
+            "[{chain_name}] \u{2192} client error"
+        );
+    } else {
+        let result_str = resp
+            .result
+            .as_ref()
+            .map(|r| truncate_json(r, 512))
+            .unwrap_or_else(|| "null".to_string());
+        debug!(
+            method = %method,
+            id = %resp.id,
+            result = %result_str,
+            "[{chain_name}] \u{2192} client response"
+        );
+    }
 }
 
 pub async fn process_single_request(

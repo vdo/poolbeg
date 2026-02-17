@@ -39,6 +39,12 @@ spec:
           args:
             - --config
             - /etc/poolbeg/config.yaml
+            - --log-level
+            {{- if and (or .Values.config.server.debug_client .Values.config.server.debug_upstream) (eq .Values.logLevel "info") }}
+            - debug
+            {{- else }}
+            - {{ .Values.logLevel }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.config.server.port }}

@@ -144,6 +144,17 @@ pub fn block_ref_is_unfinalized(req: &JsonRpcRequest) -> bool {
     true
 }
 
+/// Truncate a JSON value to a display string of at most `max_len` characters.
+/// Appends "..." when truncated and includes the original byte size.
+pub fn truncate_json(val: &serde_json::Value, max_len: usize) -> String {
+    let s = val.to_string();
+    if s.len() <= max_len {
+        s
+    } else {
+        format!("{}... ({} bytes)", &s[..max_len], s.len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

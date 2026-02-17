@@ -32,6 +32,12 @@ pub struct ServerConfig {
     pub max_ws_connections: usize,
     #[serde(default = "default_blocked_methods")]
     pub blocked_methods: Vec<String>,
+    /// Log every incoming client JSON-RPC request and response.
+    #[serde(default)]
+    pub debug_client: bool,
+    /// Log every outgoing upstream JSON-RPC request and response.
+    #[serde(default)]
+    pub debug_upstream: bool,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

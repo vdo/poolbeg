@@ -58,6 +58,8 @@ fn test_config() -> Config {
                 "miner_".to_string(),
                 "txpool_".to_string(),
             ],
+            debug_client: false,
+            debug_upstream: false,
         },
         cache: CacheConfig {
             redis: RedisConfig {

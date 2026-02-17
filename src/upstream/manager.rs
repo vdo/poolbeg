@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use anyhow::Result;
 use tokio::sync::broadcast;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::cache::CacheLayer;
 use crate::config::{ChainConfig, UpstreamRole, UpstreamStrategy};
-use crate::rpc::types::{JsonRpcRequest, JsonRpcResponse};
+use crate::rpc::types::{JsonRpcRequest, JsonRpcResponse, truncate_json};
 use crate::server::AppState;
 use crate::upstream::client::UpstreamClient;
 use crate::upstream::health;
@@ -25,6 +25,7 @@ pub struct ChainManager {
     strategy: UpstreamStrategy,
     round_robin: AtomicUsize,
     cache: CacheLayer,
+    debug_upstream: bool,
     /// Number of active WebSocket connections on this chain.
     pub ws_connections: AtomicUsize,
     /// Number of active WebSocket subscriptions on this chain.
@@ -32,7 +33,7 @@ pub struct ChainManager {
 }
 
 impl ChainManager {
-    pub async fn new(config: &ChainConfig, cache: CacheLayer) -> Result<Self> {
+    pub async fn new(config: &ChainConfig, cache: CacheLayer, debug_upstream: bool) -> Result<Self> {
         let mut upstreams = Vec::new();
         for upstream_config in &config.upstreams {
             let client = UpstreamClient::new(
@@ -61,6 +62,7 @@ impl ChainManager {
             strategy: config.strategy,
             round_robin: AtomicUsize::new(0),
             cache,
+            debug_upstream,
             ws_connections: AtomicUsize::new(0),
             ws_subscriptions: AtomicUsize::new(0),
         })
@@ -158,8 +160,47 @@ impl ChainManager {
                     continue;
                 }
 
+                if self.debug_upstream {
+                    debug!(
+                        upstream = %upstream.id,
+                        method = %req.method,
+                        id = %req.id,
+                        params = %truncate_json(&req.params, 512),
+                        "[{}] \u{2192} upstream request", self.chain_name
+                    );
+                }
+
+                let start = std::time::Instant::now();
                 match upstream.send_request(req).await {
                     Ok(resp) => {
+                        if self.debug_upstream {
+                            let elapsed = start.elapsed();
+                            if let Some(ref err) = resp.error {
+                                debug!(
+                                    upstream = %upstream.id,
+                                    method = %req.method,
+                                    id = %resp.id,
+                                    elapsed_ms = %elapsed.as_millis(),
+                                    error_code = err.code,
+                                    error_msg = %err.message,
+                                    "[{}] \u{2190} upstream error", self.chain_name
+                                );
+                            } else {
+                                let result_str = resp.result
+                                    .as_ref()
+                                    .map(|r| truncate_json(r, 512))
+                                    .unwrap_or_else(|| "null".to_string());
+                                debug!(
+                                    upstream = %upstream.id,
+                                    method = %req.method,
+                                    id = %resp.id,
+                                    elapsed_ms = %elapsed.as_millis(),
+                                    result = %result_str,
+                                    "[{}] \u{2190} upstream response", self.chain_name
+                                );
+                            }
+                        }
+
                         upstream.record_success();
                         metrics::counter!("poolbeg_requests_total",
                             "chain" => self.chain_name.clone(),
@@ -171,6 +212,18 @@ impl ChainManager {
                         return Ok(resp);
                     }
                     Err(e) => {
+                        if self.debug_upstream {
+                            let elapsed = start.elapsed();
+                            debug!(
+                                upstream = %upstream.id,
+                                method = %req.method,
+                                id = %req.id,
+                                elapsed_ms = %elapsed.as_millis(),
+                                error = %e,
+                                "[{}] \u{2190} upstream transport error", self.chain_name
+                            );
+                        }
+
                         upstream.record_failure();
                         tracing::warn!(
                             upstream = %upstream.id,

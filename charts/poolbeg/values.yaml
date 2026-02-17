@@ -1,5 +1,9 @@
 replicaCount: 1
 
+# Log level (trace, debug, info, warn, error).
+# Automatically promoted to "debug" when debug_client or debug_upstream is enabled.
+logLevel: "info"
+
 image:
   repository: ghcr.io/vdo/poolbeg
   pullPolicy: IfNotPresent
@@ -98,6 +102,8 @@ config:
       - "personal_"
       - "miner_"
       - "txpool_"
+    debug_client: false
+    debug_upstream: false
 
   cache:
     redis:
