@@ -171,7 +171,24 @@ async fn handle_single_ws_request(
     sub_mgr: &Arc<SubscriptionManager>,
     notify_tx: &mpsc::UnboundedSender<Value>,
 ) -> Option<Value> {
-    let method = parsed.get("method")?.as_str()?;
+    let chain_name = &state.config.chains[chain_idx].name;
+
+    let debug_client = state.config.server.debug_client;
+
+    let method = match parsed.get("method").and_then(|v| v.as_str()) {
+        Some(m) => m,
+        None => {
+            let id = parsed.get("id").cloned().unwrap_or(Value::Null);
+            if debug_client {
+                debug!("[{chain_name}] ws request missing or non-string 'method' field");
+            }
+            return Some(serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": "Invalid Request: missing method"},
+                "id": id
+            }));
+        }
+    };
     let id = parsed.get("id").cloned().unwrap_or(Value::Null);
     let params = parsed
         .get("params")
@@ -180,6 +197,14 @@ async fn handle_single_ws_request(
 
     // Check blocked methods
     if is_method_blocked(method, &state.config.server.blocked_methods) {
+        if debug_client {
+            debug!(method = %method, "[{chain_name}] method blocked by blocked_methods config (ws)");
+        }
+        metrics::counter!("poolbeg_blocked_requests_total",
+            "chain" => chain_name.to_string(),
+            "method" => method.to_string()
+        )
+        .increment(1);
         return Some(serde_json::json!({
             "jsonrpc": "2.0",
             "error": {"code": -32601, "message": "Method not allowed"},
@@ -187,7 +212,7 @@ async fn handle_single_ws_request(
         }));
     }
 
-    if state.config.server.debug_client {
+    if debug_client {
         debug!(
             method = %method,
             id = %id,
@@ -280,11 +305,12 @@ async fn handle_single_ws_request(
                 chain_name,
                 chain_config,
                 &state.config.server.blocked_methods,
+                state.config.server.debug_client,
                 req,
             )
             .await;
 
-            if state.config.server.debug_client {
+            if debug_client {
                 if let Some(ref err) = resp.error {
                     debug!(
                         method = %method,

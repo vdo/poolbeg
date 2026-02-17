@@ -5,7 +5,6 @@ use serde_json::Value;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use tracing::debug;
 
 use crate::config::{UpstreamConfig, UpstreamRole};
 use crate::middleware::rate_limit::RateLimiter;
@@ -233,7 +232,6 @@ impl UpstreamClient {
         };
 
         let elapsed = start.elapsed();
-        debug!(upstream = %self.id, method = %req.method, elapsed_ms = %elapsed.as_millis(), "upstream response");
 
         metrics::histogram!("poolbeg_upstream_request_duration_seconds", "upstream" => self.id.clone())
             .record(elapsed.as_secs_f64());

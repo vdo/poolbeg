@@ -42,6 +42,7 @@ pub async fn handle_rpc(
                 chain_name,
                 &state.config.chains[chain_idx],
                 &state.config.server.blocked_methods,
+                debug_client,
                 req,
             )
             .await;
@@ -90,6 +91,7 @@ pub async fn handle_rpc(
                     chain_name,
                     &state.config.chains[chain_idx],
                     &state.config.server.blocked_methods,
+                    debug_client,
                     req,
                 )
                 .await;
@@ -135,28 +137,43 @@ pub async fn process_single_request(
     chain_name: &str,
     chain_config: &crate::config::ChainConfig,
     blocked_methods: &[String],
+    debug_client: bool,
     req: JsonRpcRequest,
 ) -> JsonRpcResponse {
     let original_id = req.id.clone();
     let method = req.method.clone();
 
-    debug!(method = %method, "[{chain_name}] processing request");
+    if debug_client {
+        debug!(method = %method, "[{chain_name}] processing request");
+    }
 
     // Check blocked methods
     if is_method_blocked(&method, blocked_methods) {
+        if debug_client {
+            debug!(method = %method, "[{chain_name}] method blocked by blocked_methods config");
+        }
+        metrics::counter!("poolbeg_blocked_requests_total",
+            "chain" => chain_name.to_string(),
+            "method" => method
+        )
+        .increment(1);
         return JsonRpcResponse::error(original_id, -32601, "Method not allowed");
     }
 
     // Check cache first (unless uncacheable)
     if !is_uncacheable(&method) {
         if let Some(cached) = cache.get(chain_config.chain_id, &req).await {
-            debug!(method = %method, "[{chain_name}] cache hit");
+            if debug_client {
+                debug!(method = %method, "[{chain_name}] cache hit");
+            }
             metrics::counter!("poolbeg_cache_hits_total", "chain" => chain_name.to_string(), "method" => method.clone()).increment(1);
             let mut resp: JsonRpcResponse = match serde_json::from_str(&cached) {
                 Ok(r) => r,
                 Err(_) => {
                     // Cached data is corrupted, fall through to upstream
-                    debug!(method = %method, "[{chain_name}] corrupted cache entry, fetching from upstream");
+                    if debug_client {
+                        debug!(method = %method, "[{chain_name}] corrupted cache entry, fetching from upstream");
+                    }
                     return forward_to_upstream(
                         chain_mgr,
                         cache,

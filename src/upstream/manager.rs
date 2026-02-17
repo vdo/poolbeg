@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use tokio::sync::broadcast;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::cache::CacheLayer;
 use crate::config::{ChainConfig, UpstreamRole, UpstreamStrategy};
@@ -121,6 +121,9 @@ impl ChainManager {
     /// Uses role-based tier selection with the configured strategy within tiers.
     /// Falls back through all upstreams in the tier on failure.
     pub async fn forward_request(&self, req: &JsonRpcRequest) -> Result<JsonRpcResponse> {
+        let mut all_rate_limited = true;
+        let mut any_upstream_tried = false;
+
         // Try tiers in order: primary, secondary, fallback
         for role in &[
             UpstreamRole::Primary,
@@ -137,6 +140,8 @@ impl ChainManager {
             if tier_upstreams.is_empty() {
                 continue;
             }
+
+            any_upstream_tried = true;
 
             // Pick the preferred upstream via strategy
             let preferred = strategy::select(&tier_upstreams, self.strategy, &self.round_robin);
@@ -156,6 +161,15 @@ impl ChainManager {
             for upstream in &attempt_order {
                 // Check per-upstream rate limit
                 if !upstream.try_acquire_rate_limit() {
+                    if self.debug_upstream {
+                        debug!(
+                            upstream = %upstream.id,
+                            method = %req.method,
+                            id = %req.id,
+                            max_rps = upstream.max_rps,
+                            "[{}] upstream rate limited, skipping", self.chain_name
+                        );
+                    }
                     metrics::counter!("poolbeg_upstream_rate_limited_total",
                         "chain" => self.chain_name.clone(),
                         "upstream" => upstream.id.clone()
@@ -163,6 +177,8 @@ impl ChainManager {
                     .increment(1);
                     continue;
                 }
+
+                all_rate_limited = false;
 
                 if self.debug_upstream {
                     debug!(
@@ -241,6 +257,27 @@ impl ChainManager {
             }
         }
 
-        anyhow::bail!("all upstreams failed for chain {}", self.chain_name)
+        if !any_upstream_tried {
+            warn!(
+                method = %req.method,
+                "[{}] no healthy upstreams available", self.chain_name
+            );
+            anyhow::bail!(
+                "no healthy upstreams available for chain {}",
+                self.chain_name
+            )
+        } else if all_rate_limited {
+            warn!(
+                method = %req.method,
+                "[{}] all upstreams rate limited", self.chain_name
+            );
+            anyhow::bail!(
+                "all upstreams rate limited for chain {} (method {}). Consider increasing upstream max_rps",
+                self.chain_name,
+                req.method
+            )
+        } else {
+            anyhow::bail!("all upstreams failed for chain {}", self.chain_name)
+        }
     }
 }
