@@ -24,6 +24,12 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Install rustls crypto provider before any TLS operations.
+    // Both ring and aws-lc-rs get pulled in transitively, so we must pick one explicitly.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     let cli = Cli::parse();
 
     // Initialize tracing
