@@ -27,8 +27,10 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Initialize tracing
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&cli.log_level));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        // Set external crates to warn, only poolbeg uses the requested level
+        EnvFilter::new(format!("warn,poolbeg={}", cli.log_level))
+    });
 
     if cli.json_logs {
         tracing_subscriber::registry()

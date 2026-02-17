@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 use tokio::sync::broadcast;
-use tracing::{debug, info, warn};
+use tracing::{info, trace, warn};
 
 use crate::cache::CacheLayer;
 use crate::config::UpstreamStrategy;
@@ -93,7 +93,7 @@ impl BlockTracker {
 
             // Check rate limit before polling
             if !upstream.try_acquire_rate_limit() {
-                debug!(upstream = %upstream.id, "[{}] skipping block poll, upstream rate limited", self.chain_name);
+                trace!(upstream = %upstream.id, "[{}] skipping block poll, upstream rate limited", self.chain_name);
                 continue;
             }
 
@@ -145,7 +145,7 @@ impl BlockTracker {
         // lagging upstream, not a reorg.  With multiple upstreams (especially on
         // fast-block chains like Arbitrum) slight height differences are normal.
         if number < *last_block_number && *last_block_number > 0 {
-            debug!(
+            trace!(
                 last = *last_block_number,
                 received = number,
                 "[{}] ignoring block from lagging upstream",
@@ -178,7 +178,7 @@ impl BlockTracker {
             return Ok(());
         }
 
-        debug!(number, hash = %hash, "[{}] new block", self.chain_name);
+        trace!(number, hash = %hash, "[{}] new block", self.chain_name);
 
         // Cache the block by number and hash
         cache.cache_block(self.chain_id, number, &hash, block).await;
@@ -195,7 +195,7 @@ impl BlockTracker {
         match self.fetch_block_logs(upstream, cache, number).await {
             Ok(()) => {}
             Err(e) => {
-                debug!(number, error = %e, "[{}] failed to fetch block logs", self.chain_name);
+                trace!(number, error = %e, "[{}] failed to fetch block logs", self.chain_name);
             }
         }
 
