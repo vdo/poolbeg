@@ -89,9 +89,7 @@ async fn rate_limit_response(req: Request<Body>) -> Response {
         if let Ok(arr) = serde_json::from_slice::<Vec<serde_json::Value>>(&body_bytes) {
             let errors: Vec<_> = arr
                 .iter()
-                .map(|obj| {
-                    make_error(obj.get("id").cloned().unwrap_or(serde_json::Value::Null))
-                })
+                .map(|obj| make_error(obj.get("id").cloned().unwrap_or(serde_json::Value::Null)))
                 .collect();
             serde_json::Value::Array(errors)
         } else {
@@ -162,9 +160,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limit_response_preserves_single_id() {
-        let req = json_request(
-            r#"{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":42}"#,
-        );
+        let req =
+            json_request(r#"{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":42}"#);
         let resp = rate_limit_response(req).await;
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
 

@@ -33,7 +33,11 @@ pub struct ChainManager {
 }
 
 impl ChainManager {
-    pub async fn new(config: &ChainConfig, cache: CacheLayer, debug_upstream: bool) -> Result<Self> {
+    pub async fn new(
+        config: &ChainConfig,
+        cache: CacheLayer,
+        debug_upstream: bool,
+    ) -> Result<Self> {
         let mut upstreams = Vec::new();
         for upstream_config in &config.upstreams {
             let client = UpstreamClient::new(
@@ -186,7 +190,8 @@ impl ChainManager {
                                     "[{}] \u{2190} upstream error", self.chain_name
                                 );
                             } else {
-                                let result_str = resp.result
+                                let result_str = resp
+                                    .result
                                     .as_ref()
                                     .map(|r| truncate_json(r, 512))
                                     .unwrap_or_else(|| "null".to_string());

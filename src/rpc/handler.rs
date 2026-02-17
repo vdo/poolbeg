@@ -67,7 +67,10 @@ pub async fn handle_rpc(
             }
 
             if debug_client {
-                debug!("[{chain_name}] \u{2190} client batch of {} requests", reqs.len());
+                debug!(
+                    "[{chain_name}] \u{2190} client batch of {} requests",
+                    reqs.len()
+                );
             }
 
             let mut responses = Vec::with_capacity(reqs.len());
