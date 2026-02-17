@@ -334,9 +334,10 @@ mod tests {
         (subscriber, event_rx)
     }
 
+    #[allow(clippy::result_large_err)]
     fn text_msg(
         json: &serde_json::Value,
-    ) -> Result<Message, Box<tokio_tungstenite::tungstenite::Error>> {
+    ) -> Result<Message, tokio_tungstenite::tungstenite::Error> {
         Ok(Message::Text(serde_json::to_string(json).unwrap().into()))
     }
 
