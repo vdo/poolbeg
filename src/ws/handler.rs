@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use crate::rpc::handler::process_single_request;
-use crate::rpc::types::{JsonRpcRequest, is_method_blocked};
+use crate::rpc::types::{JsonRpcRequest, is_method_blocked, truncate_json};
 use crate::server::AppState;
 use crate::ws::subscription::{LogFilter, SubscriptionManager, SubscriptionType};
 
@@ -187,6 +187,15 @@ async fn handle_single_ws_request(
         }));
     }
 
+    if state.config.server.debug_client {
+        debug!(
+            method = %method,
+            id = %id,
+            params = %truncate_json(&params, 512),
+            "[{}] \u{2190} client ws request", state.config.chains[chain_idx].name
+        );
+    }
+
     match method {
         "eth_subscribe" => {
             let sub_type = params
@@ -274,6 +283,30 @@ async fn handle_single_ws_request(
                 req,
             )
             .await;
+
+            if state.config.server.debug_client {
+                if let Some(ref err) = resp.error {
+                    debug!(
+                        method = %method,
+                        id = %resp.id,
+                        error_code = err.code,
+                        error_msg = %err.message,
+                        "[{chain_name}] \u{2192} client ws error"
+                    );
+                } else {
+                    let result_str = resp
+                        .result
+                        .as_ref()
+                        .map(|r| truncate_json(r, 512))
+                        .unwrap_or_else(|| "null".to_string());
+                    debug!(
+                        method = %method,
+                        id = %resp.id,
+                        result = %result_str,
+                        "[{chain_name}] \u{2192} client ws response"
+                    );
+                }
+            }
 
             Some(serde_json::to_value(resp).unwrap_or(Value::Null))
         }
