@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
@@ -21,6 +21,8 @@ pub struct WsSubscriber {
     event_tx: broadcast::Sender<BlockEvent>,
     ws_connected: Arc<AtomicBool>,
     upstreams: Arc<Vec<Arc<UpstreamClient>>>,
+    /// Shared latest block number, updated alongside BlockTracker.
+    latest_block_number: Arc<AtomicU64>,
 }
 
 const MIN_BACKOFF: Duration = Duration::from_secs(1);
@@ -34,6 +36,7 @@ impl WsSubscriber {
         event_tx: broadcast::Sender<BlockEvent>,
         ws_connected: Arc<AtomicBool>,
         upstreams: Arc<Vec<Arc<UpstreamClient>>>,
+        latest_block_number: Arc<AtomicU64>,
     ) -> Self {
         Self {
             chain_id,
@@ -41,6 +44,7 @@ impl WsSubscriber {
             event_tx,
             ws_connected,
             upstreams,
+            latest_block_number,
         }
     }
 
@@ -272,6 +276,9 @@ impl WsSubscriber {
                         "[{}] upstream WS newHeads", self.chain_name
                     );
 
+                    // Update shared latest block number for memory intercepts
+                    self.latest_block_number.store(number, Ordering::Relaxed);
+
                     let _ = self.event_tx.send(BlockEvent::NewBlock {
                         chain_id: self.chain_id,
                         number,
@@ -324,12 +331,14 @@ mod tests {
     ) -> (WsSubscriber, broadcast::Receiver<BlockEvent>) {
         let (event_tx, event_rx) = broadcast::channel(64);
         let ws_connected = Arc::new(AtomicBool::new(false));
+        let latest_block_number = Arc::new(AtomicU64::new(0));
         let subscriber = WsSubscriber::new(
             1,
             "test".to_string(),
             event_tx,
             ws_connected,
             Arc::new(upstreams),
+            latest_block_number,
         );
         (subscriber, event_rx)
     }

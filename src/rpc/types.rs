@@ -121,10 +121,85 @@ pub fn is_uncacheable(method: &str) -> bool {
     )
 }
 
-/// Determine if a request references a block tag that is "unfinalized" (latest, pending, safe, earliest).
-pub fn block_ref_is_unfinalized(req: &JsonRpcRequest) -> bool {
-    let params = &req.params;
-    if let Some(arr) = params.as_array() {
+/// Methods that accept a block tag parameter and the index of that parameter.
+/// Used by `resolve_block_tags` to replace "latest"/"safe"/"finalized"/"earliest"
+/// with concrete block numbers.
+fn block_tag_param_index(method: &str) -> Option<usize> {
+    match method {
+        "eth_getBalance" | "eth_getCode" | "eth_getTransactionCount" | "eth_getStorageAt" => {
+            // Last param is block tag (index 1 for getBalance/getCode/getTransactionCount, 2 for getStorageAt)
+            match method {
+                "eth_getStorageAt" => Some(2),
+                _ => Some(1),
+            }
+        }
+        "eth_getBlockByNumber"
+        | "eth_getBlockTransactionCountByNumber"
+        | "eth_getUncleCountByBlockNumber"
+        | "eth_getUncleByBlockNumber" => Some(0),
+        _ => None,
+    }
+}
+
+/// Replace block tag strings ("latest", "safe", "finalized", "earliest") in request params
+/// with concrete hex block numbers. "pending" is left as-is (different semantics).
+///
+/// - "latest" → current latest_block as hex
+/// - "safe" → latest_block - finality_depth (or 0) as hex
+/// - "finalized" → latest_block - finality_depth (or 0) as hex
+/// - "earliest" → "0x0"
+pub fn resolve_block_tags(
+    mut req: JsonRpcRequest,
+    latest_block: u64,
+    finality_depth: u64,
+) -> JsonRpcRequest {
+    let idx = match block_tag_param_index(&req.method) {
+        Some(i) => i,
+        None => return req,
+    };
+
+    if let Some(arr) = req.params.as_array_mut()
+        && let Some(param) = arr.get_mut(idx)
+        && let Some(tag) = param.as_str()
+    {
+        let resolved = match tag {
+            "latest" => Some(format!("0x{:x}", latest_block)),
+            "safe" | "finalized" => {
+                let block = latest_block.saturating_sub(finality_depth);
+                Some(format!("0x{:x}", block))
+            }
+            "earliest" => Some("0x0".to_string()),
+            _ => None, // "pending" or already a hex number
+        };
+        if let Some(resolved_val) = resolved {
+            *param = Value::String(resolved_val);
+        }
+    }
+
+    req
+}
+
+/// Determine if a request references a block that is "unfinalized" (closer to head than finality_depth).
+/// After block tag resolution, params contain concrete hex block numbers.
+pub fn block_ref_is_unfinalized(req: &JsonRpcRequest, finality_depth: u64) -> bool {
+    // If the method has a known block tag param index, check if it's been resolved
+    if let Some(idx) = block_tag_param_index(&req.method)
+        && let Some(arr) = req.params.as_array()
+        && let Some(param) = arr.get(idx)
+        && let Some(s) = param.as_str()
+    {
+        match s {
+            "latest" | "pending" | "safe" => return true,
+            "earliest" | "finalized" => return false,
+            _ => {
+                // It's a hex block number — we can't know if it's finalized without
+                // knowing latest_block here, so fall through to the default
+            }
+        }
+    }
+
+    // Scan all params for remaining block tags (e.g. methods not in block_tag_param_index)
+    if let Some(arr) = req.params.as_array() {
         for param in arr {
             if let Some(s) = param.as_str() {
                 match s {
@@ -135,12 +210,22 @@ pub fn block_ref_is_unfinalized(req: &JsonRpcRequest) -> bool {
             }
         }
     }
-    // If method is something like eth_blockNumber, it returns latest
+
+    // eth_blockNumber and eth_getFilterChanges always return head data
     if req.method == "eth_blockNumber" || req.method == "eth_getFilterChanges" {
         return true;
     }
+
+    // If the block tag was resolved, check if the resolved block number is within finality_depth
+    // of the latest block. We stored finality_depth in the function signature for this purpose.
+    // For resolved tags, we need to check the actual block number against latest.
+    // However, without latest_block here, we default to unfinalized for safety.
+    // The resolution already happened, so if "latest" was resolved to a number, it's in the
+    // unfinalized range. If "finalized" was resolved, it's in the finalized range.
+    // Since we can't distinguish after resolution, we keep the conservative default.
+    let _ = finality_depth;
+
     // Default: assume unfinalized for safety (shorter TTL)
-    // unless we can prove it references a finalized block number/hash
     true
 }
 
@@ -260,31 +345,31 @@ mod tests {
     #[test]
     fn test_block_ref_latest_is_unfinalized() {
         let req = make_request("eth_getBalance", json!(["0xabc", "latest"]));
-        assert!(block_ref_is_unfinalized(&req));
+        assert!(block_ref_is_unfinalized(&req, 64));
     }
 
     #[test]
     fn test_block_ref_pending_is_unfinalized() {
         let req = make_request("eth_getBalance", json!(["0xabc", "pending"]));
-        assert!(block_ref_is_unfinalized(&req));
+        assert!(block_ref_is_unfinalized(&req, 64));
     }
 
     #[test]
     fn test_block_ref_finalized_is_not_unfinalized() {
         let req = make_request("eth_getBalance", json!(["0xabc", "finalized"]));
-        assert!(!block_ref_is_unfinalized(&req));
+        assert!(!block_ref_is_unfinalized(&req, 64));
     }
 
     #[test]
     fn test_block_ref_earliest_is_not_unfinalized() {
         let req = make_request("eth_getBalance", json!(["0xabc", "earliest"]));
-        assert!(!block_ref_is_unfinalized(&req));
+        assert!(!block_ref_is_unfinalized(&req, 64));
     }
 
     #[test]
     fn test_eth_block_number_is_unfinalized() {
         let req = make_request("eth_blockNumber", json!([]));
-        assert!(block_ref_is_unfinalized(&req));
+        assert!(block_ref_is_unfinalized(&req, 64));
     }
 
     #[test]
@@ -321,5 +406,93 @@ mod tests {
     fn test_is_method_blocked_empty() {
         let blocked: Vec<String> = vec![];
         assert!(!is_method_blocked("admin_nodeInfo", &blocked));
+    }
+
+    // ── resolve_block_tags tests ────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_latest_to_block_number() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "latest"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        assert_eq!(resolved.params[1], "0x3e8");
+    }
+
+    #[test]
+    fn test_resolve_finalized_to_block_number() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "finalized"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        // 1000 - 64 = 936 = 0x3a8
+        assert_eq!(resolved.params[1], "0x3a8");
+    }
+
+    #[test]
+    fn test_resolve_safe_to_block_number() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "safe"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        assert_eq!(resolved.params[1], "0x3a8");
+    }
+
+    #[test]
+    fn test_resolve_earliest_to_zero() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "earliest"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        assert_eq!(resolved.params[1], "0x0");
+    }
+
+    #[test]
+    fn test_resolve_pending_unchanged() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "pending"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        assert_eq!(resolved.params[1], "pending");
+    }
+
+    #[test]
+    fn test_resolve_hex_number_unchanged() {
+        let req = make_request("eth_getBalance", json!(["0xabc", "0x100"]));
+        let resolved = resolve_block_tags(req, 1000, 64);
+        assert_eq!(resolved.params[1], "0x100");
+    }
+
+    #[test]
+    fn test_resolve_get_block_by_number_latest() {
+        let req = make_request("eth_getBlockByNumber", json!(["latest", false]));
+        let resolved = resolve_block_tags(req, 500, 32);
+        assert_eq!(resolved.params[0], "0x1f4");
+    }
+
+    #[test]
+    fn test_resolve_get_storage_at() {
+        let req = make_request("eth_getStorageAt", json!(["0xabc", "0x0", "latest"]));
+        let resolved = resolve_block_tags(req, 2000, 64);
+        assert_eq!(resolved.params[2], "0x7d0");
+    }
+
+    #[test]
+    fn test_resolve_unknown_method_unchanged() {
+        let req = make_request("eth_getTransactionByHash", json!(["0xabc"]));
+        let resolved = resolve_block_tags(req.clone(), 1000, 64);
+        assert_eq!(resolved.params, req.params);
+    }
+
+    #[test]
+    fn test_resolve_same_latest_produces_same_cache_key() {
+        let req1 = make_request("eth_getBalance", json!(["0xabc", "latest"]));
+        let req2 = make_request("eth_getBalance", json!(["0xabc", "latest"]));
+
+        let resolved1 = resolve_block_tags(req1, 1000, 64);
+        let resolved2 = resolve_block_tags(req2, 1000, 64);
+
+        assert_eq!(
+            normalize_for_cache(&resolved1),
+            normalize_for_cache(&resolved2)
+        );
+    }
+
+    #[test]
+    fn test_resolve_finality_depth_saturating() {
+        // When finality_depth > latest_block, should saturate at 0
+        let req = make_request("eth_getBalance", json!(["0xabc", "finalized"]));
+        let resolved = resolve_block_tags(req, 10, 100);
+        assert_eq!(resolved.params[1], "0x0");
     }
 }

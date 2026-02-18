@@ -44,6 +44,9 @@ blake3 = "1"
 alloy-primitives = "1"
 alloy-rpc-types-eth = "1"
 
+# concurrent map (for request coalescing)
+dashmap = "6"
+
 # utilities
 anyhow = "1"
 thiserror = "2"

@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -29,6 +29,8 @@ pub struct ChainManager {
     debug_upstream: bool,
     /// When true, a WsSubscriber is actively forwarding real newHeads.
     ws_connected: Arc<AtomicBool>,
+    /// Shared latest block number, updated by BlockTracker and WS events.
+    latest_block_number: Arc<AtomicU64>,
     /// Number of active WebSocket connections on this chain.
     pub ws_connections: AtomicUsize,
     /// Number of active WebSocket subscriptions on this chain.
@@ -53,6 +55,7 @@ impl ChainManager {
         let upstreams = Arc::new(upstreams);
 
         let ws_connected = Arc::new(AtomicBool::new(false));
+        let latest_block_number = Arc::new(AtomicU64::new(0));
 
         let (tracker, event_rx) = BlockTracker::new(
             config.chain_id,
@@ -61,6 +64,7 @@ impl ChainManager {
             config.finality_depth,
             config.strategy,
             ws_connected.clone(),
+            latest_block_number.clone(),
         );
 
         Ok(Self {
@@ -74,6 +78,7 @@ impl ChainManager {
             cache,
             debug_upstream,
             ws_connected,
+            latest_block_number,
             ws_connections: AtomicUsize::new(0),
             ws_subscriptions: AtomicUsize::new(0),
         })
@@ -122,6 +127,7 @@ impl ChainManager {
                 self.tracker.event_tx.clone(),
                 self.ws_connected.clone(),
                 self.upstreams.clone(),
+                self.latest_block_number.clone(),
             );
             tokio::spawn(async move {
                 ws_subscriber.run().await;
@@ -141,6 +147,21 @@ impl ChainManager {
     /// Subscribe to block events.
     pub fn subscribe_events(&self) -> broadcast::Receiver<BlockEvent> {
         self.tracker.event_tx.subscribe()
+    }
+
+    /// Get the latest known block number, or `None` if no block has been tracked yet.
+    pub fn latest_block_number(&self) -> Option<u64> {
+        let n = self.latest_block_number.load(Ordering::Relaxed);
+        if n == 0 { None } else { Some(n) }
+    }
+
+    /// Update the latest block number (called from WS event processing).
+    pub fn update_latest_block_number(&self, number: u64) {
+        // Only update if higher than current (avoid going backwards from lagging sources)
+        let current = self.latest_block_number.load(Ordering::Relaxed);
+        if number > current {
+            self.latest_block_number.store(number, Ordering::Relaxed);
+        }
     }
 
     /// Forward a JSON-RPC request to the best available upstream.
@@ -211,7 +232,7 @@ impl ChainManager {
                         upstream = %upstream.id,
                         method = %req.method,
                         id = %req.id,
-                        params = %truncate_json(&req.params, 512),
+                        params = %req.params,
                         "[{}] \u{2192} upstream request", self.chain_name
                     );
                 }

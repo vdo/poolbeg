@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -47,6 +47,9 @@ pub struct BlockTracker {
     /// When true, a WsSubscriber is actively forwarding real newHeads,
     /// so BlockTracker should NOT emit NewBlock events (only cache + logs).
     ws_connected: Arc<AtomicBool>,
+    /// Latest known block number, updated by both polling and WS events.
+    /// Shared with ChainManager for serving eth_blockNumber from memory.
+    pub latest_block_number: Arc<AtomicU64>,
 }
 
 impl BlockTracker {
@@ -57,6 +60,7 @@ impl BlockTracker {
         finality_depth: u64,
         strategy: UpstreamStrategy,
         ws_connected: Arc<AtomicBool>,
+        latest_block_number: Arc<AtomicU64>,
     ) -> (Self, broadcast::Receiver<BlockEvent>) {
         let (event_tx, event_rx) = broadcast::channel(1024);
         (
@@ -69,6 +73,7 @@ impl BlockTracker {
                 event_tx,
                 round_robin: AtomicUsize::new(0),
                 ws_connected,
+                latest_block_number,
             },
             event_rx,
         )
@@ -209,6 +214,9 @@ impl BlockTracker {
 
         *last_block_number = number;
         *last_block_hash = hash;
+
+        // Update the shared latest block number for memory intercepts
+        self.latest_block_number.store(number, Ordering::Relaxed);
 
         metrics::gauge!("poolbeg_chain_head_block",
             "chain" => self.chain_name.clone()

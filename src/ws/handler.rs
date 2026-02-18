@@ -216,7 +216,7 @@ async fn handle_single_ws_request(
         debug!(
             method = %method,
             id = %id,
-            params = %truncate_json(&params, 512),
+            params = %params,
             "[{}] \u{2190} client ws request", state.config.chains[chain_idx].name
         );
     }
@@ -307,6 +307,7 @@ async fn handle_single_ws_request(
                 &state.config.server.blocked_methods,
                 state.config.server.debug_client,
                 req,
+                state,
             )
             .await;
 

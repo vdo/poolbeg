@@ -20,6 +20,7 @@ use crate::metrics as app_metrics;
 use crate::middleware::auth::auth_middleware;
 use crate::middleware::rate_limit::{RateLimiter, client_rate_limit};
 use crate::rpc;
+use crate::rpc::coalescer::RequestCoalescer;
 use crate::upstream::manager::ChainManager;
 use crate::ws;
 
@@ -28,6 +29,7 @@ pub struct AppState {
     pub config: Config,
     pub chain_managers: Vec<ChainManager>,
     pub cache: CacheLayer,
+    pub coalescer: RequestCoalescer,
     pub ws_connection_count: AtomicUsize,
 }
 
@@ -57,6 +59,7 @@ pub async fn setup(config: Config) -> anyhow::Result<Router> {
         config: config.clone(),
         chain_managers,
         cache,
+        coalescer: RequestCoalescer::new(),
         ws_connection_count: AtomicUsize::new(0),
     });
 
