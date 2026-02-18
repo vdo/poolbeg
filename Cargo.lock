@@ -2662,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "poolbeg"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
