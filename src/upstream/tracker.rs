@@ -196,11 +196,15 @@ impl BlockTracker {
         // Emit NewBlock event only if no upstream WS subscription is active.
         // When WS is connected, WsSubscriber forwards real newHeads headers.
         if !self.ws_connected.load(Ordering::Relaxed) {
+            // Strip full-block fields that are not part of a newHeads header.
+            // eth_getBlockByNumber returns a full block, but newHeads clients
+            // expect header-only data (no transactions, uncles, size, etc.).
+            let header = strip_non_header_fields(block);
             let _ = self.event_tx.send(BlockEvent::NewBlock {
                 chain_id: self.chain_id,
                 number,
                 hash: hash.clone(),
-                header: block.clone(),
+                header,
             });
         }
 
@@ -277,5 +281,24 @@ impl BlockTracker {
             }
         }
         None
+    }
+}
+
+/// Remove fields from a full block response that are not part of a newHeads header.
+/// When BlockTracker polls via HTTP (`eth_getBlockByNumber`), the response includes
+/// full-block fields like `transactions`, `uncles`, `size`, and `totalDifficulty`.
+/// Real newHeads subscriptions only return header fields.
+fn strip_non_header_fields(block: &Value) -> Value {
+    const NON_HEADER_FIELDS: &[&str] = &["transactions", "uncles", "size", "totalDifficulty"];
+
+    match block {
+        Value::Object(map) => {
+            let mut stripped = map.clone();
+            for field in NON_HEADER_FIELDS {
+                stripped.shift_remove(*field);
+            }
+            Value::Object(stripped)
+        }
+        other => other.clone(),
     }
 }

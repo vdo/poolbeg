@@ -40,6 +40,7 @@ pub enum RpcRequest {
 /// Outgoing response can be a single response or a batch.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum RpcResponse {
     Single(JsonRpcResponse),
     Batch(Vec<JsonRpcResponse>),

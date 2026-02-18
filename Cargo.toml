@@ -1,6 +1,6 @@
 [package]
 name = "poolbeg"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 description = "High-performance Web3 JSON-RPC caching proxy with Redis backend"
 license = "MIT"
@@ -22,7 +22,7 @@ fred = { version = "10", features = ["subscriber-client"] }
 
 # serialization
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 serde_yaml = "0.9"
 
 # config
